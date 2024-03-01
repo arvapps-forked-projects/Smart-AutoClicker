@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,6 @@ import com.buzbuz.smartautoclicker.R
 import com.buzbuz.smartautoclicker.core.base.identifier.DATABASE_ID_INSERTION
 import com.buzbuz.smartautoclicker.core.base.identifier.Identifier
 import com.buzbuz.smartautoclicker.core.domain.Repository
-import com.buzbuz.smartautoclicker.core.domain.model.OR
 import com.buzbuz.smartautoclicker.core.domain.model.scenario.Scenario
 import com.buzbuz.smartautoclicker.core.dumb.domain.DumbRepository
 import com.buzbuz.smartautoclicker.core.dumb.domain.model.DumbScenario
@@ -122,7 +121,7 @@ class ScenarioCreationViewModel(application: Application) : AndroidViewModel(app
     private suspend fun createDumbScenario() {
         dumbRepository.addDumbScenario(
             DumbScenario(
-                id = Identifier(databaseId = DATABASE_ID_INSERTION, domainId = 0L),
+                id = Identifier(databaseId = DATABASE_ID_INSERTION, tempId = 0L),
                 name = _name.value!!,
                 dumbActions = emptyList(),
                 repeatCount = 1,
@@ -137,10 +136,10 @@ class ScenarioCreationViewModel(application: Application) : AndroidViewModel(app
     private suspend fun createSmartScenario(context: Context) {
         repository.addScenario(
             Scenario(
-                id = Identifier(databaseId = DATABASE_ID_INSERTION, domainId = 0L),
+                id = Identifier(databaseId = DATABASE_ID_INSERTION, tempId = 0L),
                 name = _name.value!!,
                 detectionQuality = context.resources.getInteger(R.integer.default_detection_quality),
-                endConditionOperator = OR,
+                randomize = false,
             )
         )
     }
@@ -155,7 +154,7 @@ data class ScenarioTypeSelectionState(
     val selectedItem: ScenarioTypeSelection,
     val smartItemEnabled: Boolean,
 )
-sealed class ScenarioTypeItem(val titleRes: Int,  val iconRes: Int, val descriptionText: Int) {
+sealed class ScenarioTypeItem(val titleRes: Int, val iconRes: Int, val descriptionText: Int) {
 
     data object Dumb: ScenarioTypeItem(
         titleRes = R.string.item_title_dumb_scenario,

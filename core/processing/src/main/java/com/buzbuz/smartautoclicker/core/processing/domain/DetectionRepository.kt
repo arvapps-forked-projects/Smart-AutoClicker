@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,12 +18,20 @@ package com.buzbuz.smartautoclicker.core.processing.domain
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 
 import com.buzbuz.smartautoclicker.core.base.AndroidExecutor
 import com.buzbuz.smartautoclicker.core.base.identifier.Identifier
 import com.buzbuz.smartautoclicker.core.domain.Repository
+import com.buzbuz.smartautoclicker.core.domain.model.condition.ImageCondition
+import com.buzbuz.smartautoclicker.core.domain.model.event.ImageEvent
+import com.buzbuz.smartautoclicker.core.domain.model.scenario.Scenario
 import com.buzbuz.smartautoclicker.core.processing.data.DetectorEngine
-import com.buzbuz.smartautoclicker.core.processing.data.processor.ProgressListener
+import com.buzbuz.smartautoclicker.core.processing.domain.trying.ImageConditionProcessingTryListener
+import com.buzbuz.smartautoclicker.core.processing.domain.trying.ImageConditionTry
+import com.buzbuz.smartautoclicker.core.processing.domain.trying.ImageEventProcessingTryListener
+import com.buzbuz.smartautoclicker.core.processing.domain.trying.ImageEventTry
+import com.buzbuz.smartautoclicker.core.processing.domain.trying.ScenarioTry
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -79,11 +87,12 @@ class DetectionRepository private constructor(context: Context) {
      */
     val canStartDetection: Flow<Boolean> = scenarioId
         .filterNotNull()
-        .combine(detectionState) { id, state ->
+        .flatMapLatest { scenarioRepository.getEventsFlow(it.databaseId) }
+        .combine(detectionState) { events, state ->
             if (state == DetectionState.INACTIVE || state == DetectionState.ERROR_NO_NATIVE_LIB)
                 return@combine false
 
-            scenarioRepository.getEvents(id.databaseId).forEach {
+            events.forEach {
                 event -> if (event.enabledOnStart) return@combine true
             }
             false
@@ -106,18 +115,18 @@ class DetectionRepository private constructor(context: Context) {
         }
     }
 
-    suspend fun startDetection(context: Context, progressListener: ProgressListener) {
+    suspend fun startDetection(context: Context, progressListener: ScenarioProcessingListener) {
         val id = scenarioId.value?.databaseId ?: return
         val scenario = scenarioRepository.getScenario(id) ?: return
-        val events = scenarioRepository.getEvents(id)
-        val endCondition = scenarioRepository.getEndConditions(id)
+        val events = scenarioRepository.getImageEvents(id)
+        val triggerEvents = scenarioRepository.getTriggerEvents(id)
 
         detectorEngine.value?.startDetection(
             context = context,
             scenario = scenario,
-            events = events,
-            endConditions = endCondition,
-            bitmapSupplier = scenarioRepository::getBitmap,
+            imageEvents = events,
+            triggerEvents = triggerEvents,
+            bitmapSupplier = scenarioRepository::getConditionBitmap,
             progressListener = progressListener,
         )
     }
@@ -134,7 +143,44 @@ class DetectionRepository private constructor(context: Context) {
         detectorEngine.value = null
         _scenarioId.value = null
     }
+
+    fun tryEvent(context: Context, scenario: Scenario, event: ImageEvent, listener: (IConditionsResult) -> Unit) {
+        val triedElement = ImageEventTry(scenario, event)
+        tryElement(
+            context,
+            triedElement,
+            ImageEventProcessingTryListener(triedElement, listener)
+        )
+    }
+
+    fun tryImageCondition(
+        context: Context,
+        scenario: Scenario,
+        condition: ImageCondition,
+        listener: (ImageConditionResult) -> Unit,
+    ) {
+        val triedElement = ImageConditionTry(scenario, condition)
+        tryElement(
+            context = context,
+            elementTry = triedElement,
+            listener = ImageConditionProcessingTryListener(triedElement, listener)
+        )
+    }
+
+    private fun tryElement(context: Context, elementTry: ScenarioTry, listener: ScenarioProcessingListener) {
+        Log.d(TAG, "Trying element: Scenario=${elementTry.scenario}; ImageEvents=${elementTry.imageEvents}")
+        detectorEngine.value?.startDetection(
+            context = context,
+            scenario = elementTry.scenario,
+            imageEvents = elementTry.imageEvents,
+            triggerEvents = elementTry.triggerEvents,
+            bitmapSupplier = scenarioRepository::getConditionBitmap,
+            progressListener = listener,
+        )
+    }
 }
+
+private const val TAG = "DetectionRepository"
 
 /** The maximum detection quality for the algorithm. */
 const val DETECTION_QUALITY_MAX = com.buzbuz.smartautoclicker.core.detection.DETECTION_QUALITY_MAX

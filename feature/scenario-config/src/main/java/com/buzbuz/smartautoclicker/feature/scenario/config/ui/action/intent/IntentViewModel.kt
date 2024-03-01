@@ -21,12 +21,12 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.content.pm.ResolveInfo
 import android.graphics.drawable.Drawable
 
 import androidx.lifecycle.AndroidViewModel
 
-import com.buzbuz.smartautoclicker.core.base.extensions.resolveActivityCompat
+import com.buzbuz.smartautoclicker.core.android.application.AndroidApplicationInfo
+import com.buzbuz.smartautoclicker.core.android.application.getAndroidApplicationInfo
 import com.buzbuz.smartautoclicker.core.domain.model.action.Action
 import com.buzbuz.smartautoclicker.core.domain.model.action.IntentExtra
 import com.buzbuz.smartautoclicker.core.ui.bindings.dropdown.DropdownItem
@@ -34,8 +34,8 @@ import com.buzbuz.smartautoclicker.feature.scenario.config.R
 import com.buzbuz.smartautoclicker.feature.scenario.config.domain.EditionRepository
 import com.buzbuz.smartautoclicker.feature.scenario.config.utils.getEventConfigPreferences
 import com.buzbuz.smartautoclicker.feature.scenario.config.utils.putIntentIsAdvancedConfig
-import kotlinx.coroutines.FlowPreview
 
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 
 @OptIn(FlowPreview::class)
@@ -65,7 +65,7 @@ class IntentViewModel(application: Application) : AndroidViewModel(application) 
     /** Tells if the action name is valid or not. */
     val nameError: Flow<Boolean> = configuredIntent.map { it.name?.isEmpty() ?: true }
 
-    /* The intent action. */
+    /** The intent action. */
     val action: Flow<String?> = configuredIntent
         .map { it.intentAction }
         .take(1)
@@ -74,7 +74,7 @@ class IntentViewModel(application: Application) : AndroidViewModel(application) 
 
     /** The flags for this intent. */
     val flags: Flow<String> = configuredIntent
-        .map { it.flags?.toString() ?: "" }
+        .map { it.flags?.toString() ?: "0" }
         .take(1)
 
     /** The component name for the intent. */
@@ -83,20 +83,19 @@ class IntentViewModel(application: Application) : AndroidViewModel(application) 
         .take(1)
     /** Tells if the intent component name is valid or not. */
     val componentNameError: Flow<Boolean> = configuredIntent.map { intent ->
-        intent.isBroadcast == false && intent.componentName == null
+        !intent.isBroadcast && intent.componentName == null
     }
 
-    private val sendingTypeActivity = DropdownItem(title = R.string.dropdown_item_title_intent_sending_type_activity)
-    private val sendingTypeBroadcast = DropdownItem(title = R.string.dropdown_item_title_intent_sending_type_broadcast)
+    val sendingTypeActivity = DropdownItem(title = R.string.dropdown_item_title_intent_sending_type_activity)
+    val sendingTypeBroadcast = DropdownItem(title = R.string.dropdown_item_title_intent_sending_type_broadcast)
     /** Sending types choices for the dropdown field. */
     val sendingTypeItems = listOf(sendingTypeActivity, sendingTypeBroadcast)
     /** Current choice for the sending type dropdown field. */
-    val isBroadcast: Flow<DropdownItem> = configuredIntent
+    val sendingType: Flow<DropdownItem> = configuredIntent
         .map {
             when (it.isBroadcast) {
                 true -> sendingTypeBroadcast
                 false -> sendingTypeActivity
-                null -> null
             }
         }
         .filterNotNull()
@@ -121,13 +120,12 @@ class IntentViewModel(application: Application) : AndroidViewModel(application) 
         }
 
     /** Name and icon of the selected application in simple edition mode. */
-    val activityInfo: Flow<ActivityDisplayInfo?> = configuredIntent
+    val activityInfo: Flow<AndroidApplicationInfo?> = configuredIntent
         .filter { it.isAdvanced == false }
         .map { intent ->
             if (intent.componentName == null) return@map null
 
-            packageManager.resolveActivityCompat(Intent(intent.intentAction).setComponent(intent.componentName!!), 0)
-                ?.getActivityDisplayInfo(packageManager)
+            getAndroidApplicationInfo(packageManager, Intent(intent.intentAction).setComponent(intent.componentName!!))
         }
 
     /** Tells if the configured intent is valid and can be saved. */
@@ -200,6 +198,15 @@ class IntentViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Set the component name for the intent. */
+    fun setComponentName(componentName: ComponentName) {
+        editionRepository.editionState.getEditedAction<Action.Intent>()?.let { intent ->
+            editionRepository.updateEditedAction(
+                intent.copy(componentName = componentName.clone())
+            )
+        }
+    }
+
     /** Set the sending type. of the intent */
     fun setSendingType(newType: DropdownItem) {
         editionRepository.editionState.getEditedAction<Action.Intent>()?.let { intent ->
@@ -212,6 +219,16 @@ class IntentViewModel(application: Application) : AndroidViewModel(application) 
             editionRepository.updateEditedAction(intent.copy(isBroadcast = isBroadcast))
         }
     }
+
+    fun getConfiguredIntentAction(): String? =
+        editionRepository.editionState.getEditedAction<Action.Intent>()?.intentAction
+
+    fun getConfiguredIntentFlags(): Int =
+        editionRepository.editionState.getEditedAction<Action.Intent>()?.flags ?: 0
+
+    fun isConfiguredIntentBroadcast(): Boolean =
+        editionRepository.editionState.getEditedAction<Action.Intent>()?.isBroadcast ?: false
+
 
     /** @return creates a new extra for this intent. */
     fun createNewExtra(): IntentExtra<Any> =
@@ -256,17 +273,3 @@ sealed class ExtraListItem {
     /** Item representing an intent extra. */
     data class ExtraItem(val extra: IntentExtra<out Any>, val name: String, val value: String) : ExtraListItem()
 }
-
-/**
- * Get the activity display information from this resolve info, if possible.
- * @param packageManager the Android package manager to fetch the information from.
- * @return activity display information, or null if this resolve info is invalid for activity.
- */
-fun ResolveInfo.getActivityDisplayInfo(packageManager: PackageManager): ActivityDisplayInfo? =
-    activityInfo?.let { actInfo ->
-        ActivityDisplayInfo(
-            ComponentName(actInfo.packageName, actInfo.name),
-            actInfo.loadLabel(packageManager).toString(),
-            actInfo.loadIcon(packageManager)
-        )
-    }

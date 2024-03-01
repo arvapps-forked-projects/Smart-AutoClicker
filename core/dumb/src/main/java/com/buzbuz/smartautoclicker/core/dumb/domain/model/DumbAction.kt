@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,16 +17,17 @@
 package com.buzbuz.smartautoclicker.core.dumb.domain.model
 
 import android.graphics.Point
+import com.buzbuz.smartautoclicker.core.base.interfaces.Identifiable
 import com.buzbuz.smartautoclicker.core.base.identifier.Identifier
 
-sealed class DumbAction {
+sealed class DumbAction : Identifiable {
 
-    /** The unique identifier for the action. */
-    abstract val id: Identifier
     /** The identifier of the dumb scenario for this dumb action. */
     abstract val scenarioId: Identifier
     /** The name of the dumb action. */
     abstract val name: String?
+
+    abstract val priority: Int
 
     abstract fun isValid(): Boolean
 
@@ -34,6 +35,7 @@ sealed class DumbAction {
         override val id: Identifier,
         override val scenarioId: Identifier,
         override val name: String,
+        override val priority: Int = 0,
         override val repeatCount: Int,
         override val isRepeatInfinite: Boolean,
         override val repeatDelayMs: Long,
@@ -49,6 +51,7 @@ sealed class DumbAction {
         override val id: Identifier,
         override val scenarioId: Identifier,
         override val name: String,
+        override val priority: Int = 0,
         override val repeatCount: Int,
         override val isRepeatInfinite: Boolean,
         override val repeatDelayMs: Long,
@@ -64,6 +67,7 @@ sealed class DumbAction {
         override val id: Identifier,
         override val scenarioId: Identifier,
         override val name: String,
+        override val priority: Int = 0,
         val pauseDurationMs: Long,
     ) : DumbAction() {
 

@@ -21,12 +21,13 @@
 
 #include "utils/androidBitmap.hpp"
 #include "utils/roi.hpp"
+#include "utils/scaling.hpp"
 #include "detector.hpp"
 
 using namespace cv;
 using namespace smartautoclicker;
 
-void Detector::setScreenMetrics(JNIEnv *env, jobject screenImage, double detectionQuality) {
+void Detector::setScreenMetrics(JNIEnv *env, jstring metricsTag, jobject screenImage, double detectionQuality) {
     // Initial the current image mat. When the size of the image change (e.g. rotation), this method should be called
     // to update it.
     fullSizeColorCurrentImage = createColorMatFromARGB8888BitmapData(env, screenImage);
@@ -34,12 +35,9 @@ void Detector::setScreenMetrics(JNIEnv *env, jobject screenImage, double detecti
     // Select the scale ratio depending on the screen size.
     // We reduce the size to improve the processing time, but we don't want it to be too small because it will impact
     // the performance of the detection.
-    auto maxImageDim = max(fullSizeColorCurrentImage->rows, fullSizeColorCurrentImage->cols);
-    if (maxImageDim <= detectionQuality) {
-        scaleRatio = 1;
-    } else {
-        scaleRatio = detectionQuality / maxImageDim;
-    }
+    const char *tag = env->GetStringUTFChars(metricsTag, 0);
+    scaleRatio = findBestScaleRatio(*fullSizeColorCurrentImage, detectionQuality, tag);
+    env->ReleaseStringUTFChars(metricsTag, tag);
 }
 
 void Detector::setScreenImage(JNIEnv *env, jobject screenImage) {
@@ -51,7 +49,7 @@ void Detector::setScreenImage(JNIEnv *env, jobject screenImage) {
     cv::cvtColor(*fullSizeColorCurrentImage, fullSizeGrayCurrentImage, cv::COLOR_RGBA2GRAY);
 
     // Scale down the image and store it apart (the cache image is not resized)
-    resize(fullSizeGrayCurrentImage, *scaledGrayCurrentImage, Size(), scaleRatio, scaleRatio, INTER_AREA);
+    scaleMat(fullSizeGrayCurrentImage, scaleRatio, *scaledGrayCurrentImage);
 }
 
 DetectionResult Detector::detectCondition(JNIEnv *env, jobject conditionImage, int threshold) {
@@ -115,8 +113,6 @@ DetectionResult Detector::detectCondition(JNIEnv *env, jobject conditionImage, c
     while (!detectionResult.isDetected) {
         // Find the max value and its position in the result
         locateMinMax(*matchingResults, detectionResult);
-        // If the maximum for the whole picture is below the threshold, we will never find.
-        if (!isValidMatching(detectionResult, threshold)) break;
 
         // Calculate the ROI based on the maximum location
         scaledMatchingRoi = getRoiForResult(detectionResult.maxLoc, *scaledGrayCondition);
@@ -124,9 +120,17 @@ DetectionResult Detector::detectCondition(JNIEnv *env, jobject conditionImage, c
         if (isRoiContainedInImage(scaledMatchingRoi, *scaledGrayCurrentImage) ||
             isRoiContainedInImage(fullSizeMatchingRoi, *fullSizeColorCurrentImage)) {
             // Roi is out of bounds, invalid match
+            detectionResult.centerX = 0;
+            detectionResult.centerY = 0;
             markRoiAsInvalidInResults(scaledMatchingRoi, *matchingResults);
             continue;
         }
+
+        detectionResult.centerX = fullSizeMatchingRoi.x + ((int) (fullSizeMatchingRoi.width / 2));
+        detectionResult.centerY = fullSizeMatchingRoi.y + ((int) (fullSizeMatchingRoi.height / 2));
+
+        // If the maximum for the whole picture is below the threshold, we will never find.
+        if (!isResultAboveThreshold(detectionResult, threshold)) break;
 
         // Check if the colors are matching in the candidate area.
         auto fullSizeColorCroppedCurrentImage = Mat(*fullSizeColorCurrentImage, fullSizeMatchingRoi);
@@ -137,15 +141,6 @@ DetectionResult Detector::detectCondition(JNIEnv *env, jobject conditionImage, c
             // Colors are invalid, modify the matching result to indicate that.
             markRoiAsInvalidInResults(scaledMatchingRoi, *matchingResults);
         }
-    }
-
-    // If the condition is detected, compute the position of the detection and add it to the results.
-    if (detectionResult.isDetected) {
-        detectionResult.centerX = fullSizeMatchingRoi.x + ((int) (fullSizeMatchingRoi.width / 2));
-        detectionResult.centerY = fullSizeMatchingRoi.y + ((int) (fullSizeMatchingRoi.height / 2));
-    } else {
-        detectionResult.centerX = 0;
-        detectionResult.centerY = 0;
     }
 
     return detectionResult;
@@ -160,7 +155,7 @@ std::unique_ptr<Mat> Detector::scaleAndChangeToGray(const cv::Mat& fullSizeColor
     auto scaledGrayCondition = Mat(max((int) (fullSizeGrayCondition.rows * scaleRatio), 1),
                                    max((int) (fullSizeGrayCondition.cols * scaleRatio), 1),
                                    CV_8UC1);
-    resize(fullSizeGrayCondition, scaledGrayCondition, Size(), scaleRatio, scaleRatio, INTER_AREA);
+    scaleMat(fullSizeGrayCondition, scaleRatio, scaledGrayCondition);
 
     return std::make_unique<cv::Mat>(scaledGrayCondition);
 }
@@ -178,7 +173,7 @@ void Detector::locateMinMax(const Mat& matchingResult, DetectionResult& results)
     minMaxLoc(matchingResult, &results.minVal, &results.maxVal, &results.minLoc, &results.maxLoc, Mat());
 }
 
-bool Detector::isValidMatching(const DetectionResult& results, const int threshold) {
+bool Detector::isResultAboveThreshold(const DetectionResult& results, const int threshold) {
     return results.maxVal > ((double) (100 - threshold) / 100);
 }
 

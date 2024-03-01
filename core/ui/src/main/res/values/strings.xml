@@ -32,6 +32,7 @@
       -->
     <string name="item_title_click_position">Click position</string>
     <string name="item_title_swipe_positions">Swipe positions</string>
+    <string name="item_title_try_element">Test your %1$s</string>
     <string name="item_error_action_invalid_generic">This action is invalid</string>
 
     <!--
@@ -56,7 +57,7 @@
     <string name="input_field_label_anti_detection">Anti-detection</string>
     <string name="input_field_label_click_press_duration">Press duration (ms)</string>
     <string name="input_field_label_name">Name</string>
-    <string name="input_field_label_pause_duration">Pause duration (ms)</string>
+    <string name="input_field_label_pause_duration">Pause duration</string>
     <string name="input_field_label_scenario_name">Scenario name</string>
     <string name="input_field_label_swipe_duration">Swipe duration (ms)</string>
     <string name="input_field_error_required">Required</string>
@@ -88,8 +89,10 @@
       - Content description texts.
       - They are use as accessibility texts for visually impaired people. They will not be displayed but spoken.
       -->
+    <string name="content_desc_action_icon">The icon showing the type of action</string>
     <string name="content_desc_add_button">The button to create an element</string>
     <string name="content_desc_copy_button">The button to create a copy from an existing element</string>
+    <string name="content_desc_drag_and_drop">Drag and drop to reorder the elements</string>
     <string name="content_desc_move_menu">Move the floating menu</string>
     <string name="content_desc_play_pause_scenario">Play or pause the scenario</string>
     <string name="content_desc_stop_clicker">Stop Smart AutoClicker</string>

@@ -25,7 +25,6 @@ import com.buzbuz.smartautoclicker.core.database.entity.TutorialSuccessEntity
 import com.buzbuz.smartautoclicker.core.domain.Repository
 import com.buzbuz.smartautoclicker.core.base.identifier.DATABASE_ID_INSERTION
 import com.buzbuz.smartautoclicker.core.base.identifier.Identifier
-import com.buzbuz.smartautoclicker.core.domain.model.OR
 import com.buzbuz.smartautoclicker.core.domain.model.TutorialSuccessState
 import com.buzbuz.smartautoclicker.core.domain.model.scenario.Scenario
 
@@ -51,10 +50,9 @@ internal class TutorialStateDataSource(context: Context) {
             if (tutorialIndex == 0) {
                 scenarioRepository.addScenario(
                     Scenario(
-                        id = Identifier(databaseId = DATABASE_ID_INSERTION, domainId = 0L),
+                        id = Identifier(databaseId = DATABASE_ID_INSERTION, tempId = 0L),
                         name = "Tutorial",
                         detectionQuality = 1200,
-                        endConditionOperator = OR,
                     )
                 )
             } else {
@@ -103,7 +101,7 @@ internal class TutorialStateDataSource(context: Context) {
 
             val removedConditionsPath = mutableListOf<String>()
             tutorialDatabase.eventDao().getEventsIds(scenarioId.databaseId).forEach { eventId ->
-                tutorialDatabase.conditionDao().getConditionsPath(eventId).forEach { path ->
+                tutorialDatabase.conditionDao().getConditionsPaths(eventId).forEach { path ->
                     if (!removedConditionsPath.contains(path)) removedConditionsPath.add(path)
                 }
             }

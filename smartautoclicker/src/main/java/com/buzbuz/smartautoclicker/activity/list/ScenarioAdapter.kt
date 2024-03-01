@@ -27,7 +27,7 @@ import androidx.recyclerview.widget.RecyclerView
 
 import com.buzbuz.smartautoclicker.R
 import com.buzbuz.smartautoclicker.core.base.extensions.setLeftCompoundDrawable
-import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
+import com.buzbuz.smartautoclicker.core.domain.model.condition.ImageCondition
 import com.buzbuz.smartautoclicker.core.dumb.domain.model.DumbScenario
 import com.buzbuz.smartautoclicker.databinding.ItemDumbScenarioBinding
 import com.buzbuz.smartautoclicker.databinding.ItemEmptyScenarioBinding
@@ -43,7 +43,7 @@ import kotlinx.coroutines.Job
  * @param deleteScenarioListener listener upon the delete button of a scenario.
  */
 class ScenarioAdapter(
-    private val bitmapProvider: (Condition, onBitmapLoaded: (Bitmap?) -> Unit) -> Job?,
+    private val bitmapProvider: (ImageCondition, onBitmapLoaded: (Bitmap?) -> Unit) -> Job?,
     private val startScenarioListener: ((ScenarioListUiState.Item) -> Unit),
     private val exportClickListener: ((ScenarioListUiState.Item) -> Unit),
     private val deleteScenarioListener: ((ScenarioListUiState.Item) -> Unit),
@@ -166,7 +166,7 @@ class DumbScenarioViewHolder(
 /** ViewHolder for the [ScenarioAdapter]. */
 class SmartScenarioViewHolder(
     private val viewBinding: ItemSmartScenarioBinding,
-    bitmapProvider: (Condition, onBitmapLoaded: (Bitmap?) -> Unit) -> Job?,
+    bitmapProvider: (ImageCondition, onBitmapLoaded: (Bitmap?) -> Unit) -> Job?,
     private val startScenarioListener: ((ScenarioListUiState.Item) -> Unit),
     private val exportClickListener: ((ScenarioListUiState.Item) -> Unit),
     private val deleteScenarioListener: ((ScenarioListUiState.Item) -> Unit),
@@ -180,7 +180,17 @@ class SmartScenarioViewHolder(
 
     fun onBind(scenarioItem: ScenarioListUiState.Item.Valid.Smart) = viewBinding.apply {
         scenarioName.text = scenarioItem.displayName
+        detectionQuality.text = scenarioItem.detectionQuality.toString()
+        triggerEventCount.text = scenarioItem.triggerEventCount.toString()
+
         eventsAdapter.submitList(scenarioItem.eventsItems)
+        if (scenarioItem.eventsItems.isEmpty()) {
+            listEvent.visibility = View.GONE
+            noImageEvents.visibility = View.VISIBLE
+        } else {
+            listEvent.visibility = View.VISIBLE
+            noImageEvents.visibility = View.GONE
+        }
 
         if (scenarioItem.showExportCheckbox) {
             buttonDelete.visibility = View.GONE

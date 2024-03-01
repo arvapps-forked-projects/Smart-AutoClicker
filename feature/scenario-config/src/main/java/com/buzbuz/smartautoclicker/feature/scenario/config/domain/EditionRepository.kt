@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,6 +14,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package com.buzbuz.smartautoclicker.feature.scenario.config.domain
 
 import android.content.Context
@@ -23,12 +25,16 @@ import com.buzbuz.smartautoclicker.core.domain.Repository
 import com.buzbuz.smartautoclicker.core.domain.model.action.Action
 import com.buzbuz.smartautoclicker.core.domain.model.action.IntentExtra
 import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
-import com.buzbuz.smartautoclicker.core.domain.model.endcondition.EndCondition
 import com.buzbuz.smartautoclicker.core.domain.model.event.Event
+import com.buzbuz.smartautoclicker.core.domain.model.event.ImageEvent
 import com.buzbuz.smartautoclicker.core.domain.model.scenario.Scenario
 import com.buzbuz.smartautoclicker.feature.scenario.config.data.ScenarioEditor
+import com.buzbuz.smartautoclicker.feature.scenario.config.domain.model.IEditionState
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 
@@ -64,30 +70,32 @@ class EditionRepository private constructor(context: Context) {
     /** Provides creators for all elements in an edited scenario. */
     val editedItemsBuilder: EditedItemsBuilder = EditedItemsBuilder(context, scenarioEditor)
     /** Provides the states of all elements in the edited scenario. */
-    val editionState: EditionState = EditionState(context, scenarioEditor)
-    /** Tells if the editions made on the scenario are synchronized with the database values. */
-    val isEditionSynchronized: Flow<Boolean> = scenarioEditor.editedScenario.map { it == null }
+    val editionState: IEditionState = EditionState(context, scenarioEditor)
 
+    /** Tells if the editions made on the scenario are synchronized with the database values. */
+    val isEditionSynchronized: Flow<Boolean> = scenarioEditor.editedScenario
+        .map { it == null }
     /** Tells if the user is currently editing a scenario. */
     val isEditingScenario: Flow<Boolean> = scenarioEditor.editedScenario
         .map { it?.id != null }
     /** Tells if the user is currently editing an event. */
-    val isEditingEvent: Flow<Boolean> = scenarioEditor.eventsEditor.editedItem
+    val isEditingEvent: Flow<Boolean> = scenarioEditor.currentEventEditor
+        .flatMapLatest { eventsEditor -> eventsEditor?.editedItem ?: flowOf(null) }
         .map { it?.id != null }
     /** Tells if the user is currently editing a condition. */
-    val isEditingCondition: Flow<Boolean> = scenarioEditor.eventsEditor.conditionsEditor.editedItem
+    val isEditingCondition: Flow<Boolean> = scenarioEditor.currentEventEditor
+        .flatMapLatest { eventsEditor -> eventsEditor?.conditionsEditor?.editedItem ?: flowOf(null) }
         .map { it?.id != null }
     /** Tells if the user is currently editing an action. */
-    val isEditingAction: Flow<Boolean> = scenarioEditor.eventsEditor.actionsEditor.editedItem
-        .map { it?.id != null }
-    /** Tells if the user is currently editing an end condition. */
-    val isEditingEndCondition: Flow<Boolean> = scenarioEditor.endConditionsEditor.editedItem
+    val isEditingAction: Flow<Boolean> = scenarioEditor.currentEventEditor
+        .flatMapLatest { eventsEditor -> eventsEditor?.actionsEditor?.editedItem ?: flowOf(null) }
         .map { it?.id != null }
     /** Tells if the user is currently editing an Intent Extra. */
-    val isEditingIntentExtra: Flow<Boolean> = scenarioEditor.eventsEditor.actionsEditor.intentExtraEditor.editedItem
+    val isEditingIntentExtra: Flow<Boolean> = scenarioEditor.currentEventEditor
+        .flatMapLatest { eventsEditor -> eventsEditor?.actionsEditor?.intentExtraEditor?.editedItem ?: flowOf(null) }
         .map { it?.id != null }
 
-    // --- SCENARIO - START ---
+    // --- SCENARIO
 
     /** Set the scenario to be configured. */
     suspend fun startEdition(scenarioId: Long): Boolean {
@@ -100,8 +108,8 @@ class EditionRepository private constructor(context: Context) {
 
         scenarioEditor.startEdition(
             scenario = scenario,
-            events = repository.getEvents(scenarioId),
-            endConditions = repository.getEndConditions(scenarioId),
+            imageEvents = repository.getImageEvents(scenarioId),
+            triggerEvents = repository.getTriggerEvents(scenarioId),
         )
         return true
     }
@@ -112,112 +120,94 @@ class EditionRepository private constructor(context: Context) {
 
         val updateResult = repository.updateScenario(
             scenario = scenarioEditor.editedScenario.value ?: return false,
-            events = scenarioEditor.eventsEditor.editedList.value ?: return false,
-            endConditions = scenarioEditor.endConditionsEditor.editedList.value ?: return false,
+            events = scenarioEditor.getAllEditedEvents(),
         )
 
         // In case of error, do not stop the edition
         if (!updateResult) return false
 
         scenarioEditor.stopEdition()
-        editedItemsBuilder.resetGeneratedIdsCount()
+        repository.cleanupUnusedBitmaps(editedItemsBuilder.newImageConditionsPaths)
+        editedItemsBuilder.resetBuilder()
 
         return true
+    }
+
+    /** Cancel all changes made during the edition. */
+    suspend fun stopEdition() {
+        Log.d(TAG, "Stop edition")
+        scenarioEditor.stopEdition()
+        repository.cleanupUnusedBitmaps(editedItemsBuilder.newImageConditionsPaths)
+        editedItemsBuilder.resetBuilder()
     }
 
     /** Update the currently edited scenario. */
     fun updateEditedScenario(scenario: Scenario): Unit = scenarioEditor.updateEditedScenario(scenario)
     /** Update the priority of the events in the scenario. */
-    fun updateEventsOrder(newEvents: List<Event>): Unit = scenarioEditor.eventsEditor.updateList(newEvents)
-
-
-    // --- EVENT - START ---
-
-    fun startEventEdition(event: Event): Unit =
-        scenarioEditor.eventsEditor.startItemEdition(event)
-    fun updateEditedEvent(event: Event): Unit =
-        scenarioEditor.eventsEditor.updateEditedItem(event)
-    fun updateActionsOrder(actions: List<Action>): Unit =
-        scenarioEditor.eventsEditor.actionsEditor.updateList(actions)
-    fun upsertEditedEvent(): Unit =
-        scenarioEditor.eventsEditor.upsertEditedItem()
-    fun deleteEditedEvent(): Unit =
-        scenarioEditor.eventsEditor.deleteEditedItem()
-
-
-    // --- CONDITION - START ---
-
-    fun startConditionEdition(condition: Condition): Unit =
-        scenarioEditor.eventsEditor.conditionsEditor.startItemEdition(condition)
-    fun updateEditedCondition(condition: Condition): Unit =
-        scenarioEditor.eventsEditor.conditionsEditor.updateEditedItem(condition)
-    fun upsertEditedCondition(): Unit =
-        scenarioEditor.eventsEditor.conditionsEditor.upsertEditedItem()
-    fun deleteEditedCondition(): Unit =
-        scenarioEditor.eventsEditor.conditionsEditor.deleteEditedItem()
-    fun stopConditionEdition(): Unit =
-        scenarioEditor.eventsEditor.conditionsEditor.stopItemEdition()
-
-    // --- CONDITION - END ---
-
-
-    // --- ACTION - START ---
-
-    fun startActionEdition(action: Action): Unit =
-        scenarioEditor.eventsEditor.actionsEditor.startItemEdition(action)
-    fun updateEditedAction(action: Action): Unit =
-        scenarioEditor.eventsEditor.actionsEditor.updateEditedItem(action)
-    fun upsertEditedAction(): Unit =
-        scenarioEditor.eventsEditor.actionsEditor.upsertEditedItem()
-    fun deleteEditedAction(): Unit =
-        scenarioEditor.eventsEditor.actionsEditor.deleteEditedItem()
-
-
-    // --- INTENT EXTRA - START ---
-
-    fun startIntentExtraEdition(extra: IntentExtra<out Any>): Unit =
-        scenarioEditor.eventsEditor.actionsEditor.intentExtraEditor.startItemEdition(extra)
-    fun updateEditedIntentExtra(extra: IntentExtra<out Any>): Unit =
-        scenarioEditor.eventsEditor.actionsEditor.intentExtraEditor.updateEditedItem(extra)
-    fun upsertEditedIntentExtra(): Unit =
-        scenarioEditor.eventsEditor.actionsEditor.intentExtraEditor.upsertEditedItem()
-    fun deleteEditedIntentExtra(): Unit =
-        scenarioEditor.eventsEditor.actionsEditor.intentExtraEditor.deleteEditedItem()
-    fun stopIntentExtraEdition(): Unit =
-        scenarioEditor.eventsEditor.actionsEditor.intentExtraEditor.stopItemEdition()
-
-    // --- INTENT EXTRA - END ---
-
-    fun stopActionEdition(): Unit =
-        scenarioEditor.eventsEditor.actionsEditor.stopItemEdition()
-
-    // --- ACTION - END ---
-
-    fun stopEventEdition(): Unit =
-        scenarioEditor.eventsEditor.stopItemEdition()
-
-    // --- EVENT - END ---
-
-    // --- END CONDITION - START ---
-
-    fun startEndConditionEdition(endCondition: EndCondition): Unit =
-        scenarioEditor.endConditionsEditor.startItemEdition(endCondition)
-    fun updateEditedEndCondition(endCondition: EndCondition): Unit =
-        scenarioEditor.endConditionsEditor.updateEditedItem(endCondition)
-    fun upsertEditedEndCondition(): Unit =
-        scenarioEditor.endConditionsEditor.upsertEditedItem()
-    fun deleteEditedEndCondition(): Unit =
-        scenarioEditor.endConditionsEditor.deleteEditedItem()
-    fun stopEndConditionEdition(): Unit =
-        scenarioEditor.endConditionsEditor.stopItemEdition()
-
-    // --- END CONDITION - END ---
-
-    /** Cancel all changes made during the edition. */
-    fun stopEdition() {
-        Log.d(TAG, "Stop edition")
-        scenarioEditor.stopEdition()
+    fun updateImageEventsOrder(newEvents: List<ImageEvent>) {
+        scenarioEditor.updateImageEventsOrder(
+            newEvents.mapIndexed { index, event -> event.copy(priority = index) }
+        )
     }
 
-    // --- SCENARIO - END ---
+    // --- EVENT
+
+    fun startEventEdition(event: Event) =
+        scenarioEditor.startEventEdition(event)
+    fun updateEditedEvent(event: Event) =
+        scenarioEditor.updateEditedEvent(event)
+    fun updateActionsOrder(actions: List<Action>) {
+        scenarioEditor.updateActionsOrder(
+            actions.mapIndexed { index, action -> action.copyBase(priority = index) }
+        )
+    }
+
+    fun upsertEditedEvent() =
+        scenarioEditor.upsertEditedEvent()
+    fun deleteEditedEvent() =
+        scenarioEditor.deleteEditedEvent()
+    fun stopEventEdition(): Unit =
+        scenarioEditor.stopEventEdition()
+
+
+    // --- CONDITION
+
+    fun startConditionEdition(condition: Condition) =
+        scenarioEditor.currentEventEditor.value?.conditionsEditor?.startItemEdition(condition)
+    fun updateEditedCondition(condition: Condition) =
+        scenarioEditor.currentEventEditor.value?.conditionsEditor?.updateEditedItem(condition)
+    fun upsertEditedCondition() =
+        scenarioEditor.currentEventEditor.value?.conditionsEditor?.upsertEditedItem()
+    fun deleteEditedCondition() =
+        scenarioEditor.currentEventEditor.value?.conditionsEditor?.deleteEditedItem()
+    fun stopConditionEdition() =
+        scenarioEditor.currentEventEditor.value?.conditionsEditor?.stopItemEdition()
+
+
+    // --- ACTION
+
+    fun startActionEdition(action: Action) =
+        scenarioEditor.currentEventEditor.value?.actionsEditor?.startItemEdition(action)
+    fun updateEditedAction(action: Action) =
+        scenarioEditor.currentEventEditor.value?.actionsEditor?.updateEditedItem(action)
+    fun upsertEditedAction() =
+        scenarioEditor.currentEventEditor.value?.actionsEditor?.upsertEditedItem()
+    fun deleteEditedAction() =
+        scenarioEditor.currentEventEditor.value?.actionsEditor?.deleteEditedItem()
+    fun stopActionEdition() =
+        scenarioEditor.currentEventEditor.value?.actionsEditor?.stopItemEdition()
+
+
+    // --- INTENT EXTRA
+
+    fun startIntentExtraEdition(extra: IntentExtra<out Any>) =
+        scenarioEditor.currentEventEditor.value?.actionsEditor?.intentExtraEditor?.startItemEdition(extra)
+    fun updateEditedIntentExtra(extra: IntentExtra<out Any>) =
+        scenarioEditor.currentEventEditor.value?.actionsEditor?.intentExtraEditor?.updateEditedItem(extra)
+    fun upsertEditedIntentExtra() =
+        scenarioEditor.currentEventEditor.value?.actionsEditor?.intentExtraEditor?.upsertEditedItem()
+    fun deleteEditedIntentExtra() =
+        scenarioEditor.currentEventEditor.value?.actionsEditor?.intentExtraEditor?.deleteEditedItem()
+    fun stopIntentExtraEdition() =
+        scenarioEditor.currentEventEditor.value?.actionsEditor?.intentExtraEditor?.stopItemEdition()
 }

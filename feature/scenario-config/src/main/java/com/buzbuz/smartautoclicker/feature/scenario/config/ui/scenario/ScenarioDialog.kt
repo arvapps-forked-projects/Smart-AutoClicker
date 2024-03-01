@@ -32,10 +32,12 @@ import com.buzbuz.smartautoclicker.core.ui.overlays.dialog.NavBarDialogContent
 import com.buzbuz.smartautoclicker.core.ui.overlays.viewModels
 import com.buzbuz.smartautoclicker.feature.scenario.config.R
 import com.buzbuz.smartautoclicker.feature.scenario.config.ui.scenario.config.ScenarioConfigContent
-import com.buzbuz.smartautoclicker.feature.scenario.config.ui.scenario.eventlist.EventListContent
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.scenario.imageevents.ImageEventListContent
 import com.buzbuz.smartautoclicker.feature.scenario.config.ui.scenario.more.MoreContent
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.scenario.triggerevents.TriggerEventListContent
 
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.navigation.NavigationBarView
 
 import kotlinx.coroutines.launch
 
@@ -47,8 +49,6 @@ class ScenarioDialog(
     /** The view model for this dialog. */
     private val viewModel: ScenarioDialogViewModel by viewModels()
 
-    override val navigationMenuId: Int = R.menu.menu_scenario_config
-
     override fun onCreateView(): ViewGroup {
         return super.onCreateView().also {
             topBarBinding.setButtonVisibility(DialogNavigationButton.SAVE, View.VISIBLE)
@@ -56,8 +56,13 @@ class ScenarioDialog(
         }
     }
 
+    override fun inflateMenu(navBarView: NavigationBarView) {
+        navBarView.inflateMenu(R.menu.menu_scenario_config)
+    }
+
     override fun onCreateContent(navItemId: Int): NavBarDialogContent = when (navItemId) {
-        R.id.page_events -> EventListContent(context.applicationContext)
+        R.id.page_image_events -> ImageEventListContent(context.applicationContext)
+        R.id.page_trigger_events -> TriggerEventListContent(context.applicationContext)
         R.id.page_config -> ScenarioConfigContent(context.applicationContext)
         R.id.page_more -> MoreContent(context.applicationContext)
         else -> throw IllegalArgumentException("Unknown menu id $navItemId")

@@ -32,6 +32,7 @@
       -->
     <string name="item_title_click_position">Fare clic sulla posizione</string>
     <string name="item_title_swipe_positions">Posizioni di scorrimento</string>
+    <string name="item_title_try_element">Testate il vostro %1$s</string>
     <string name="item_error_action_invalid_generic">Questa azione non è valida</string>
 
     <!--
@@ -56,7 +57,7 @@
     <string name="input_field_label_anti_detection">Anti-rilevamento</string>
     <string name="input_field_label_click_press_duration">Durata pressione (ms)</string>
     <string name="input_field_label_name">Nome</string>
-    <string name="input_field_label_pause_duration">Durata attesa (ms)</string>
+    <string name="input_field_label_pause_duration">Durata attesa</string>
     <string name="input_field_label_scenario_name">Nome scenario</string>
     <string name="input_field_label_swipe_duration">Durata scorrimento (ms)</string>
     <string name="input_field_error_required">Richiesto</string>
@@ -88,8 +89,10 @@
       - Content description texts.
       - They are use as accessibility texts for visually impaired people. They will not be displayed but spoken.
       -->
+    <string name="content_desc_action_icon">L\'icona che mostra il tipo di azione</string>
     <string name="content_desc_add_button">Il pulsante per creare un elemento</string>
     <string name="content_desc_copy_button">Il pulsante per creare una copia da un elemento esistente</string>
+    <string name="content_desc_drag_and_drop">Trascina e rilascia per riordinare gli elementi</string>
     <string name="content_desc_move_menu">Sposta il menù fluttuante</string>
     <string name="content_desc_play_pause_scenario">Avvia o ferma lo scenario</string>
     <string name="content_desc_stop_clicker">Ferma Smart AutoClicker</string>

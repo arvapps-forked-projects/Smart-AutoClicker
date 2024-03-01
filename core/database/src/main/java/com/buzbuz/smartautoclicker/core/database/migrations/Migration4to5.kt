@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,9 +16,16 @@
  */
 package com.buzbuz.smartautoclicker.core.database.migrations
 
+import android.content.ContentValues
 import androidx.annotation.VisibleForTesting
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+
+import com.buzbuz.smartautoclicker.core.base.migrations.SQLiteColumn
+import com.buzbuz.smartautoclicker.core.base.migrations.SQLiteTable
+import com.buzbuz.smartautoclicker.core.base.migrations.forEachRow
+import com.buzbuz.smartautoclicker.core.base.migrations.getSQLiteTableReference
+import com.buzbuz.smartautoclicker.core.database.CONDITION_TABLE
 
 /**
  * Migration from database v4 to v5.
@@ -39,55 +46,32 @@ object Migration4to5 : Migration(4, 5) {
     @VisibleForTesting
     internal const val THRESHOLD_MAX_VALUE = 20
 
+    private val conditionIdColumn = SQLiteColumn.PrimaryKey()
+    private val conditionThresholdColumn = SQLiteColumn.Int("threshold")
+
     override fun migrate(db: SupportSQLiteDatabase) {
-        db.apply {
-            execSQL(addConditionNameColumn)
-            execSQL(addConditionDetectionTypeColumn)
-            updateAllThreshold()
-        }
-    }
+        db.getSQLiteTableReference(CONDITION_TABLE).apply {
+            addConditionsColumns()
 
-    private fun SupportSQLiteDatabase.updateAllThreshold() {
-        query(getAllConditions).use { cursor ->
-            if (cursor.count == 0) {
-                return
+            forEachRow(null, conditionIdColumn, conditionThresholdColumn) { id, threshold ->
+                updateThreshold(
+                    id = id,
+                    threshold = (threshold + THRESHOLD_INCREASE).coerceAtMost(THRESHOLD_MAX_VALUE),
+                )
             }
-
-            cursor.moveToFirst()
-
-            val idColumnIndex = cursor.getColumnIndex("id")
-            val thresholdColumnIndex = cursor.getColumnIndex("threshold")
-            if (idColumnIndex< 0 || thresholdColumnIndex < 0) throw IllegalStateException("Can't find columns")
-
-            do {
-                val newThreshold = (cursor.getInt(thresholdColumnIndex) + THRESHOLD_INCREASE)
-                    .coerceAtMost(THRESHOLD_MAX_VALUE)
-                execSQL(updateThreshold(cursor.getLong(idColumnIndex), newThreshold))
-            } while (cursor.moveToNext())
         }
     }
 
-    /** Update the current condition threshold to keep detecting old conditions. */
-    private fun updateThreshold(id: Long, threshold: Int) = """
-        UPDATE `condition_table` 
-        SET `threshold` = $threshold
-        WHERE `id` = $id
-    """.trimIndent()
+    private fun SQLiteTable.addConditionsColumns() = apply {
+        alterTableAddColumn(SQLiteColumn.Text("name", defaultValue = "Condition"))
+        alterTableAddColumn(SQLiteColumn.Int("detection_type", defaultValue = "1"))
+    }
 
-    /** Add the name column to the condition table. */
-    private val addConditionNameColumn = """
-        ALTER TABLE `condition_table` 
-        ADD COLUMN `name` TEXT DEFAULT "Condition" NOT NULL
-    """.trimIndent()
-
-    /** Add the detection type column to the condition table. */
-    private val addConditionDetectionTypeColumn = """
-        ALTER TABLE `condition_table` 
-        ADD COLUMN `detection_type` INTEGER DEFAULT 1 NOT NULL
-    """.trimIndent()
-
-    private val getAllConditions = """
-        SELECT `id`, `threshold` 
-        FROM `condition_table`
-    """.trimIndent()
+    private fun SQLiteTable.updateThreshold(id: Long, threshold: Int) =
+        update(
+            extraClause = "WHERE `id` = $id",
+            contentValues = ContentValues().apply {
+                put(conditionThresholdColumn.name, threshold)
+            }
+        )
 }

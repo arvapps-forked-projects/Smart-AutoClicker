@@ -22,20 +22,20 @@ import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 
-import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
+import com.buzbuz.smartautoclicker.core.domain.model.condition.ImageCondition
 import com.buzbuz.smartautoclicker.core.domain.Repository
 import com.buzbuz.smartautoclicker.feature.scenario.debugging.domain.ConditionProcessingDebugInfo
 import com.buzbuz.smartautoclicker.feature.scenario.debugging.domain.DebugReport
 import com.buzbuz.smartautoclicker.feature.scenario.debugging.domain.DebuggingRepository
 import com.buzbuz.smartautoclicker.feature.scenario.debugging.domain.ProcessingDebugInfo
 
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.Flow
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
 
 /** ViewModel for the [DebugReportDialog]. */
@@ -76,26 +76,17 @@ class DebugReportModel(application: Application) : AndroidViewModel(application)
      * @param condition the condition to load the bitmap of.
      * @param onBitmapLoaded the callback notified upon completion.
      */
-    fun getConditionBitmap(condition: Condition, onBitmapLoaded: (Bitmap?) -> Unit): Job? {
-        if (condition.bitmap != null) {
-            onBitmapLoaded.invoke(condition.bitmap)
-            return null
-        }
-
-        if (condition.path != null) {
-            return viewModelScope.launch(Dispatchers.IO) {
-                val bitmap = repository.getBitmap(condition.path!!, condition.area.width(), condition.area.height())
-
-                if (isActive) {
-                    withContext(Dispatchers.Main) {
-                        onBitmapLoaded.invoke(bitmap)
-                    }
+    fun getConditionBitmap(condition: ImageCondition, onBitmapLoaded: (Bitmap?) -> Unit): Job {
+        return viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val bitmap = repository.getConditionBitmap(condition)
+                withContext(Dispatchers.Main) {
+                    onBitmapLoaded.invoke(bitmap)
                 }
+            } catch (cEx: CancellationException) {
+                onBitmapLoaded.invoke(null)
             }
         }
-
-        onBitmapLoaded.invoke(null)
-        return null
     }
 
     private fun newScenarioItem(debugInfo: DebugReport, averageImageProcessingTime: Long) =
@@ -121,7 +112,7 @@ class DebugReportModel(application: Application) : AndroidViewModel(application)
             conditionReports = conditionReports,
         )
 
-    private fun createConditionReports(conditions: List<Condition>?, debugReport: DebugReport) = buildList {
+    private fun createConditionReports(conditions: List<ImageCondition>?, debugReport: DebugReport) = buildList {
         conditions?.forEach { condition ->
             debugReport.conditionsProcessedInfo[condition.id.databaseId]?.let { (condition, condDebugInfo) ->
                 add(newConditionReport(condition.id.databaseId, condition, condDebugInfo))
@@ -129,7 +120,7 @@ class DebugReportModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun newConditionReport(id: Long, condition: Condition, debugInfo: ConditionProcessingDebugInfo) =
+    private fun newConditionReport(id: Long, condition: ImageCondition, debugInfo: ConditionProcessingDebugInfo) =
         ConditionReport(
             id = id,
             condition = condition,
@@ -173,7 +164,7 @@ sealed class DebugReportItem {
 
 data class ConditionReport(
     val id: Long,
-    val condition: Condition,
+    val condition: ImageCondition,
     val matchCount: String,
     val processingCount: String,
     val avgProcessingDuration: String,

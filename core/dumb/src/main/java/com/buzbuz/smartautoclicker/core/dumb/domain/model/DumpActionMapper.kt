@@ -28,17 +28,18 @@ internal fun DumbActionEntity.toDomain(asDomain: Boolean = false): DumbAction = 
     DumbActionType.SWIPE -> toDomainSwipe(asDomain)
     DumbActionType.PAUSE -> toDomainPause(asDomain)
 }
-internal fun DumbAction.toEntity(scenarioDbId: Long = DATABASE_ID_INSERTION, priority: Int): DumbActionEntity = when (this) {
-    is DumbAction.DumbClick -> toClickEntity(scenarioDbId, priority)
-    is DumbAction.DumbSwipe -> toSwipeEntity(scenarioDbId, priority)
-    is DumbAction.DumbPause -> toPauseEntity(scenarioDbId, priority)
+internal fun DumbAction.toEntity(scenarioDbId: Long = DATABASE_ID_INSERTION): DumbActionEntity = when (this) {
+    is DumbAction.DumbClick -> toClickEntity(scenarioDbId)
+    is DumbAction.DumbSwipe -> toSwipeEntity(scenarioDbId)
+    is DumbAction.DumbPause -> toPauseEntity(scenarioDbId)
 }
 
 private fun DumbActionEntity.toDomainClick(asDomain: Boolean): DumbAction.DumbClick =
     DumbAction.DumbClick(
-        id = Identifier(id = id, asDomain = asDomain),
-        scenarioId = Identifier(id = dumbScenarioId, asDomain = asDomain),
+        id = Identifier(id = id, asTemporary = asDomain),
+        scenarioId = Identifier(id = dumbScenarioId, asTemporary = asDomain),
         name = name,
+        priority = priority,
         position = Point(x!!, y!!),
         pressDurationMs = pressDuration!!,
         repeatCount = repeatCount!!,
@@ -48,9 +49,10 @@ private fun DumbActionEntity.toDomainClick(asDomain: Boolean): DumbAction.DumbCl
 
 private fun DumbActionEntity.toDomainSwipe(asDomain: Boolean): DumbAction.DumbSwipe =
     DumbAction.DumbSwipe(
-        id = Identifier(id = id, asDomain = asDomain),
-        scenarioId = Identifier(id = dumbScenarioId, asDomain = asDomain),
+        id = Identifier(id = id, asTemporary = asDomain),
+        scenarioId = Identifier(id = dumbScenarioId, asTemporary = asDomain),
         name = name,
+        priority = priority,
         fromPosition = Point(fromX!!, fromY!!),
         toPosition = Point(toX!!, toY!!),
         swipeDurationMs = swipeDuration!!,
@@ -61,13 +63,14 @@ private fun DumbActionEntity.toDomainSwipe(asDomain: Boolean): DumbAction.DumbSw
 
 private fun DumbActionEntity.toDomainPause(asDomain: Boolean): DumbAction.DumbPause =
     DumbAction.DumbPause(
-        id = Identifier(id = id, asDomain = asDomain),
-        scenarioId = Identifier(id = dumbScenarioId, asDomain = asDomain),
+        id = Identifier(id = id, asTemporary = asDomain),
+        scenarioId = Identifier(id = dumbScenarioId, asTemporary = asDomain),
         name = name,
+        priority = priority,
         pauseDurationMs = pauseDuration!!,
     )
 
-private fun DumbAction.DumbClick.toClickEntity(scenarioDbId: Long, priority: Int): DumbActionEntity {
+private fun DumbAction.DumbClick.toClickEntity(scenarioDbId: Long): DumbActionEntity {
     if (!isValid()) throw IllegalStateException("Can't transform to entity, Click is incomplete.")
 
     return DumbActionEntity(
@@ -85,7 +88,7 @@ private fun DumbAction.DumbClick.toClickEntity(scenarioDbId: Long, priority: Int
     )
 }
 
-private fun DumbAction.DumbSwipe.toSwipeEntity(scenarioDbId: Long, priority: Int): DumbActionEntity {
+private fun DumbAction.DumbSwipe.toSwipeEntity(scenarioDbId: Long): DumbActionEntity {
     if (!isValid()) throw IllegalStateException("Can't transform to entity, Swipe is incomplete.")
 
     return DumbActionEntity(
@@ -105,7 +108,7 @@ private fun DumbAction.DumbSwipe.toSwipeEntity(scenarioDbId: Long, priority: Int
     )
 }
 
-private fun DumbAction.DumbPause.toPauseEntity(scenarioDbId: Long, priority: Int): DumbActionEntity {
+private fun DumbAction.DumbPause.toPauseEntity(scenarioDbId: Long): DumbActionEntity {
     if (!isValid()) throw IllegalStateException("Can't transform to entity, Pause is incomplete.")
 
     return DumbActionEntity(

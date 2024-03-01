@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,8 +31,8 @@ import com.buzbuz.smartautoclicker.feature.billing.IBillingRepository
 import com.buzbuz.smartautoclicker.feature.billing.ProModeAdvantage
 import com.buzbuz.smartautoclicker.feature.scenario.config.R
 import com.buzbuz.smartautoclicker.feature.scenario.config.domain.EditionRepository
-import com.buzbuz.smartautoclicker.feature.scenario.config.ui.bindings.ActionDetails
-import com.buzbuz.smartautoclicker.feature.scenario.config.ui.bindings.toActionDetails
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.common.bindings.ActionDetails
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.common.bindings.toActionDetails
 
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.Flow
@@ -60,14 +60,7 @@ class ActionsViewModel(application: Application) : AndroidViewModel(application)
         }
 
     /** Tells if there is at least one action to copy. */
-    val canCopyAction: Flow<Boolean> = combine(
-        editionRepository.editionState.editedEventState,
-        editionRepository.editionState.editedScenarioOtherActionsForCopy,
-        editionRepository.editionState.allOtherScenarioActionsForCopy,
-    ) { eventState, scenarioActions, allActions ->
-        val event = eventState.value ?: return@combine false
-        event.actions.isNotEmpty() || scenarioActions.isNotEmpty() || allActions.isNotEmpty()
-    }
+    val canCopyAction: Flow<Boolean> = editionRepository.editionState.canCopyActions
 
     /** List of action details. */
     val actionDetails: Flow<List<Pair<Action, ActionDetails>>> = configuredActions
@@ -83,8 +76,9 @@ class ActionsViewModel(application: Application) : AndroidViewModel(application)
                 add(ActionTypeChoice.Click)
                 add(ActionTypeChoice.Swipe)
                 add(ActionTypeChoice.Pause)
-                add(ActionTypeChoice.Intent(isProModePurchased))
+                add(ActionTypeChoice.ChangeCounter(isProModePurchased))
                 add(ActionTypeChoice.ToggleEvent(isProModePurchased))
+                add(ActionTypeChoice.Intent(isProModePurchased))
             }
         }.stateIn(
             viewModelScope,
@@ -107,6 +101,7 @@ class ActionsViewModel(application: Application) : AndroidViewModel(application)
         is ActionTypeChoice.Pause -> editionRepository.editedItemsBuilder.createNewPause(context)
         is ActionTypeChoice.Intent -> editionRepository.editedItemsBuilder.createNewIntent(context)
         is ActionTypeChoice.ToggleEvent -> editionRepository.editedItemsBuilder.createNewToggleEvent(context)
+        is ActionTypeChoice.ChangeCounter -> editionRepository.editedItemsBuilder.createNewChangeCounter(context)
     }
 
     /**
@@ -118,9 +113,9 @@ class ActionsViewModel(application: Application) : AndroidViewModel(application)
 
     fun startActionEdition(action: Action) = editionRepository.startActionEdition(action)
 
-    fun upsertEditedAction(): Unit = editionRepository.upsertEditedAction()
+    fun upsertEditedAction() = editionRepository.upsertEditedAction()
 
-    fun removeEditedAction(): Unit = editionRepository.deleteEditedAction()
+    fun removeEditedAction() = editionRepository.deleteEditedAction()
 
     fun dismissEditedAction() = editionRepository.stopActionEdition()
 
@@ -178,21 +173,21 @@ sealed class ActionTypeChoice(
     enabled = enabled,
 ) {
     /** Click Action choice. */
-    object Click : ActionTypeChoice(
+    data object Click : ActionTypeChoice(
         R.string.item_title_click,
         R.string.item_desc_click,
         R.drawable.ic_click,
         enabled = true,
     )
     /** Swipe Action choice. */
-    object Swipe : ActionTypeChoice(
+    data object Swipe : ActionTypeChoice(
         R.string.item_title_swipe,
         R.string.item_desc_swipe,
         R.drawable.ic_swipe,
         enabled = true,
     )
     /** Pause Action choice. */
-    object Pause : ActionTypeChoice(
+    data object Pause : ActionTypeChoice(
         R.string.item_title_pause,
         R.string.item_desc_pause,
         R.drawable.ic_wait,
@@ -210,6 +205,14 @@ sealed class ActionTypeChoice(
         R.string.item_title_toggle_event,
         R.string.item_desc_toggle_event,
         R.drawable.ic_toggle_event,
+        enabled = enabled,
+    )
+
+    /** Change counter Action choice. */
+    class ChangeCounter(enabled: Boolean) : ActionTypeChoice(
+        R.string.item_title_change_counter,
+        R.string.item_desc_change_counter,
+        R.drawable.ic_change_counter,
         enabled = enabled,
     )
 }

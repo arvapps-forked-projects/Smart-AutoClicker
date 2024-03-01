@@ -32,6 +32,7 @@
       -->
     <string name="item_title_click_position">点击位置</string>
     <string name="item_title_swipe_positions">刷卡位置</string>
+    <string name="item_title_try_element">测试您的 %1$s</string>
     <string name="item_error_action_invalid_generic">此操作无效</string>
 
     <!--
@@ -54,7 +55,7 @@
     <string name="input_field_label_anti_detection">反作弊</string>
     <string name="input_field_label_click_press_duration">单击持续时间 (ms)</string>
     <string name="input_field_label_name">名称</string>
-    <string name="input_field_label_pause_duration">延迟 (ms)</string>
+    <string name="input_field_label_pause_duration">延迟</string>
     <string name="input_field_label_scenario_name">脚本名</string>
     <string name="input_field_label_swipe_duration">滑动持续时间 (ms)</string>
     <string name="input_field_error_required">不能为空</string>
@@ -86,9 +87,11 @@
       - Content description texts.
       - They are use as accessibility texts for visually impaired people. They will not be displayed but spoken.
       -->
+    <string name="content_desc_action_icon">这个图标标注动作类型</string>
     <string name="content_desc_add_button">创建元素的按钮</string>
     <string name="content_desc_copy_button">从现有元素创建副本的按钮</string>
     <string name="content_desc_move_menu">移动悬浮窗菜单</string>
+    <string name="content_desc_drag_and_drop">拖放以重新排序元素</string>
     <string name="content_desc_play_pause_scenario">开始或者停止该脚本</string>
     <string name="content_desc_stop_clicker">停止自动点击器</string>
     <string name="content_desc_confirm">确认</string>

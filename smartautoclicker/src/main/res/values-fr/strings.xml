@@ -20,6 +20,8 @@
     <!-- Application wide texts. -->
     <string name="notification_title">Scénario : %1$s</string>
     <string name="notification_message">Appuyez pour changer le scénario</string>
+    <string name="notification_button_toggle_menu">Afficher/Cacher</string>
+    <string name="notification_button_stop">Stop</string>
     <string name="activity_title">Scénarios</string>
     <string name="accessibility_service_description">Cette application à besoin de ce service pour injecter les clics
         que vous avez créé dans les autres applications une fois que les conditions ont été détectées.\n\nAucune donnée
@@ -121,5 +123,6 @@
 
     <!-- Default name when creating a new scenario -->
     <string name="default_scenario_name">Nom par défaut</string>
+    <string name="message_empty_image_events_scenario_list">No image events</string>
 
 </resources>

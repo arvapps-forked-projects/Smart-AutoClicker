@@ -43,19 +43,19 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="@dimen/margin_horizontal_small"/>
 
-        <include layout="@layout/include_input_field_text"
+        <include layout="@layout/include_input_text_with_checkbox"
             android:id="@+id/edit_action_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="@dimen/margin_horizontal_small"/>
 
-        <include layout="@layout/include_input_field_text"
+        <include layout="@layout/include_input_text_with_checkbox"
             android:id="@+id/edit_flags_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="@dimen/margin_horizontal_small"/>
 
-        <include layout="@layout/include_input_field_text"
+        <include layout="@layout/include_input_text_with_checkbox"
             android:id="@+id/edit_component_name_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -90,7 +90,7 @@
                     android:scrollbars="horizontal"
                     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
                     tools:itemCount="1"
-                    tools:listitem="@layout/item_end_condition_card"
+                    tools:listitem="@layout/item_intent_extra_card"
                     tools:visibility="visible"/>
 
             </LinearLayout>

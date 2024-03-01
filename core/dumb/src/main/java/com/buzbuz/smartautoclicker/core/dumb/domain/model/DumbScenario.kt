@@ -16,11 +16,11 @@
  */
 package com.buzbuz.smartautoclicker.core.dumb.domain.model
 
+import com.buzbuz.smartautoclicker.core.base.interfaces.Identifiable
 import com.buzbuz.smartautoclicker.core.base.identifier.Identifier
-import kotlin.time.Duration.Companion.hours
 
 data class DumbScenario(
-    val id: Identifier,
+    override val id: Identifier,
     val name: String,
     val dumbActions: List<DumbAction> = emptyList(),
     override val repeatCount: Int,
@@ -28,7 +28,7 @@ data class DumbScenario(
     val maxDurationMin: Int,
     val isDurationInfinite: Boolean,
     val randomize: Boolean,
-) : Repeatable {
+) : Identifiable, Repeatable {
 
     fun isValid(): Boolean = name.isNotEmpty() && dumbActions.isNotEmpty()
 }

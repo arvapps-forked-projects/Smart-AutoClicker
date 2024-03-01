@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,10 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import androidx.room.TypeConverter
+
+import com.buzbuz.smartautoclicker.core.base.interfaces.EntityWithId
+import com.buzbuz.smartautoclicker.core.database.INTENT_EXTRA_TABLE
+
 import kotlinx.serialization.Serializable
 
 /**
@@ -37,7 +40,7 @@ import kotlinx.serialization.Serializable
  * @param value the value for the extra. This is a string representation of the value with the type [type].
  */
 @Entity(
-    tableName = "intent_extra_table",
+    tableName = INTENT_EXTRA_TABLE,
     indices = [Index("action_id")],
     foreignKeys = [ForeignKey(
         entity = ActionEntity::class,
@@ -48,12 +51,12 @@ import kotlinx.serialization.Serializable
 )
 @Serializable
 data class IntentExtraEntity(
-    @PrimaryKey(autoGenerate = true) var id: Long,
+    @PrimaryKey(autoGenerate = true) override var id: Long,
     @ColumnInfo(name = "action_id") var actionId: Long,
     @ColumnInfo(name = "type") val type: IntentExtraType,
     @ColumnInfo(name = "key") val key: String,
     @ColumnInfo(name = "value") val value: String,
-)
+) : EntityWithId
 
 /** The list of supported types for the value of an [IntentExtraEntity]. */
 enum class IntentExtraType {
@@ -65,12 +68,4 @@ enum class IntentExtraType {
     FLOAT,
     SHORT,
     STRING
-}
-
-/** Type converter to read/write the [IntentExtraType] into the database. */
-internal class IntentExtraTypeStringConverter {
-    @TypeConverter
-    fun fromString(value: String): IntentExtraType = IntentExtraType.valueOf(value)
-    @TypeConverter
-    fun toString(intentExtraType: IntentExtraType): String = intentExtraType.toString()
 }

@@ -18,6 +18,8 @@ package com.buzbuz.smartautoclicker.feature.scenario.config.data.base
 
 import androidx.annotation.CallSuper
 
+import com.buzbuz.smartautoclicker.core.base.interfaces.Completable
+import com.buzbuz.smartautoclicker.core.base.interfaces.Identifiable
 import com.buzbuz.smartautoclicker.feature.scenario.config.domain.model.EditedElementState
 import com.buzbuz.smartautoclicker.feature.scenario.config.domain.model.EditedListState
 
@@ -26,11 +28,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 
-abstract class ListEditor<Item, Parent>(
+internal open class ListEditor<Item , Parent>(
     private val onListUpdated: ((List<Item>) -> Unit)? = null,
     canBeEmpty: Boolean = false,
     parentItem: StateFlow<Parent?>,
-) {
+) where Item: Identifiable, Item: Completable {
 
     private val referenceList: MutableStateFlow<List<Item>?> = MutableStateFlow(null)
     private val _editedList: MutableStateFlow<List<Item>?> = MutableStateFlow(null)
@@ -47,7 +49,7 @@ abstract class ListEditor<Item, Parent>(
             edit.isEmpty() -> canBeSaved = canBeEmpty
             else -> {
                 edit.forEach { item ->
-                    if (!isItemComplete(item, parent)) {
+                    if (!itemCanBeSaved(item, parent)) {
                         canBeSaved = false
                         itemValidity.add(false)
                     } else {
@@ -68,18 +70,24 @@ abstract class ListEditor<Item, Parent>(
             if (ref == null || edit == null) false
             else ref != edit
 
-        val canBeSaved = edit?.let { isItemComplete(it, parent) } ?: false
+        val canBeSaved = itemCanBeSaved(edit, parent)
 
         EditedElementState(edit, hasChanged, canBeSaved)
     }
 
-    abstract fun areItemsTheSame(a: Item, b: Item): Boolean
-    abstract fun isItemComplete(item: Item, parent: Parent?): Boolean
+    val allEditedItems: Flow<List<Item>> =
+        combine(editedList, editedItem, ::buildAllItemList)
+
+    fun getAllEditedItems(): List<Item> =
+        buildAllItemList(editedList.value, editedItem.value)
 
     fun startEdition(referenceItems: List<Item>) {
         referenceList.value = referenceItems
         _editedList.value = referenceItems.toList()
     }
+
+    fun isItemEditionStarted(): Boolean =
+        referenceEditedItem.value != null
 
     @CallSuper
     open fun startItemEdition(item: Item) {
@@ -147,6 +155,19 @@ abstract class ListEditor<Item, Parent>(
         onListUpdated?.invoke(newList)
     }
 
+    open fun itemCanBeSaved(item: Item?, parent: Parent?): Boolean =
+        item?.isComplete() ?: false
+
     private fun List<Item>.indexOfItem(item: Item): Int =
-        indexOfFirst { areItemsTheSame(it, item) }
+        indexOfFirst { it.id == item.id }
+
+    private fun buildAllItemList(editedList: List<Item>?, editedItem: Item?) =
+        buildList {
+            val items = editedList ?: emptyList()
+            addAll(items)
+
+            editedItem?.let { item ->
+                if (items.find { item.id == it.id } == null) add(item)
+            }
+        }
 }

@@ -29,12 +29,19 @@
     <string name="dialog_overlay_title_end_condition_config">终止条件</string>
     <string name="dialog_overlay_title_event_config">场景</string>
     <string name="dialog_overlay_title_event_selection">选择一个场景</string>
-    <string name="dialog_overlay_title_intent">意图</string>
-    <string name="dropdown_label_intent_extra_value_type">参数值类型</string>
     <string name="dialog_overlay_title_pause">等待</string>
     <string name="dialog_overlay_title_scenario_config">场景</string>
     <string name="dialog_overlay_title_swipe">滑动</string>
     <string name="dialog_overlay_title_toggle_event">场景状态</string>
+    <string name="dialog_overlay_title_events_toggle">事件切换</string>
+    <string name="dialog_overlay_title_change_counter">修改计数器</string>
+    <string name="dialog_overlay_title_counter_name_selection">计数器</string>
+    <string name="dialog_overlay_title_trigger_condition_type">触发器类型</string>
+    <string name="dialog_overlay_title_timer_reached">计时器达到</string>
+    <string name="dialog_overlay_title_broadcast_received">Broadcast 收到</string>
+    <string name="dialog_overlay_title_counter_reached">计数器数值</string>
+    <string name="dialog_overlay_title_image_event_config">屏幕事件</string>
+    <string name="dialog_overlay_title_trigger_event_config">活动</string>
 
     <!--
       - Text for menu items.
@@ -49,6 +56,8 @@
     <string name="menu_item_title_more">更多</string>
     <string name="menu_item_title_conditions">条件</string>
     <string name="menu_item_title_actions">动作</string>
+    <string name="menu_item_title_image_events">屏幕</string>
+    <string name="menu_item_title_trigger_events">触发器</string>
 
     <!--
       - Text for items in a list or vertical layout.
@@ -75,7 +84,25 @@
     <string name="item_desc_swipe_positions">从 (%1$d, %2$d) 滑动到 (%3$d, %4$d)</string>
     <string name="item_desc_toggle_event">启用或禁用某场景</string>
     <string name="item_desc_toggle_event_details">将场景状态设置为： %1$s</string>
+    <string name="item_desc_toggle_event_manual">定义要手动更改的事件</string>
+    <string name="item_desc_toggle_event_enable_all">启用此场景中的所有事件</string>
+    <string name="item_desc_toggle_event_invert_all">反转该场景中所有事件的状态</string>
+    <string name="item_desc_toggle_event_disable_all">禁用此情景中的所有事件。禁用所有事件后，情景会自动停止。</string>
+    <string name="item_desc_event_toggles_empty">选择至少一个事件，将其状态更改为</string>
+    <string name="item_desc_toggle_event_state_enable_all">启用所有</string>
+    <string name="item_desc_toggle_event_state_disable_all">全部禁用</string>
+    <string name="item_desc_toggle_event_state_invert_all">全部反转</string>
+    <string name="item_desc_toggle_event_state_manual">更改 %1$d 事件</string>
+    <string name="item_desc_change_counter">更改数值以便稍后验证</string>
+    <string name="item_desc_change_counter_details">%1$s %2$s %3$d</string>
+    <string name="item_desc_on_broadcast_received">%1$s 收到</string>
+    <string name="item_desc_on_counter_reached">%1$s %2$s %3$d</string>
+    <string name="item_desc_on_timer_reached">%1$s 事件启用后</string>
+    <string name="item_desc_broadcast_received">收到Broadcast时执行</string>
+    <string name="item_desc_timer_reached">在事件激活后的规定时间内完成</string>
+    <string name="item_desc_counter_reached">验证被操作修改的计数器值</string>
     <string name="item_error_action_invalid_toggle_event_target">"未找到目标事件 "</string>
+    <string name="item_error_action_invalid_change_counter">计数器无效</string>
     <string name="item_title_click">单击</string>
     <string name="item_title_click_on_condition_and_operator">单击一个条件</string>
     <string name="item_title_click_on_condition_or_operator">单击第一个检测到的条件</string>
@@ -90,25 +117,40 @@
     <string name="item_title_pause">等待</string>
     <string name="item_title_swipe">滑动</string>
     <string name="item_title_toggle_event">修改场景状态</string>
+    <string name="item_title_empty_event_toggles">无变化</string>
+    <string name="item_title_event_toggles">%1$d 变化</string>
+    <string name="item_title_change_counter">更改计数器</string>
+    <string name="item_title_timer_reached">达到计时器时</string>
+    <string name="item_title_counter_reached">在柜台上达到</string>
+    <string name="item_title_broadcast_received">收到Broadcast</string>
+    <string name="item_title_restart_when_reached">达到后重新启动</string>
+    <string name="item_title_toggle_type">切换类型</string>
+    <string name="item_title_toggle_change_all">全部更改</string>
 
     <!--
       - Empty list messages.
       - Views handles any length here, so no limitations.
       -->
     <string name="message_empty_actions">未创建动作！</string>
-    <string name="message_empty_conditions">未创建条件！</string>
+    <string name="message_empty_trigger_conditions">无条件！</string>
+    <string name="message_empty_image_conditions">未创建条件！</string>
     <string name="message_empty_end_condition_config_event_none_in_scenario">没有在脚本中创建场景</string>
     <string name="message_empty_end_condition_config_event_no_selection">没有场景被选择</string>
-    <string name="message_empty_event_list">未创建场景！</string>
+    <string name="message_empty_image_event_list">无屏幕事件 ！</string>
+    <string name="message_empty_trigger_event_list">无活动 ！</string>
+    <string name="message_empty_counter_name_list">未定义计数器</string>
 
     <!--
       - Secondary empty list messages.
       - Views handles any length here, you can use more verbosity than the regular empty text.
       -->
     <string name="message_empty_secondary_end_condition_no_events">您需要至少创建一个场景才能使用结束条件</string>
-    <string name="message_empty_secondary_event_list">一个场景包含一组在屏幕上检测到特定条件时执行的动作。\n您需要在您的脚本中至少有一个场景来执行它。</string>
-    <string name="message_empty_secondary_condition_list">按照指定条件在屏幕每一帧的截图上进行搜索。\n您的场景中需要至少存在一个条件。</string>
+    <string name="message_empty_secondary_screen_event_list">屏幕事件包含一组在屏幕上检测到特定条件时执行的操作。您需要在场景中至少有一个事件或屏幕事件才能执行。</string>
+    <string name="message_empty_secondary_trigger_event_list">事件包含一组在满足自定义条件时执行的操作。\n您需要在场景中至少有一个事件或屏幕事件才能执行它。</string>
+    <string name="message_empty_secondary_trigger_condition_list">条件是启动操作的自定义标准。</string>
+    <string name="message_empty_secondary_image_condition_list">屏幕条件是屏幕截图的一部分，将在手机屏幕显示的每个帧上进行搜索。</string>
     <string name="message_empty_secondary_action_list">当条件满足时，创建的动作将被执行（点击、滑动……）\n您的场景中需要至少存在一个动作。</string>
+    <string name="message_empty_secondary_counter_name_list">使用更改计数器操作或计数器达到条件创建计数器</string>
 
     <!--
       - Messages.
@@ -138,12 +180,13 @@
       - List header.
       - Displayed on one line.
       -->
-    <string name="list_header_copy_action_this">此场景下的动作</string>
-    <string name="list_header_copy_action_all">所有场景下的动作</string>
+    <string name="list_header_copy_action_this">本次活动的行动</string>
+    <string name="list_header_copy_action_all">其他活动的行动</string>
     <string name="list_header_copy_conditions_this">此场景下的条件</string>
     <string name="list_header_copy_conditions_all">所有场景下的条件</string>
     <string name="list_header_copy_event_this">此脚本中的场景</string>
     <string name="list_header_copy_event_all">所有脚本中的场景</string>
+
 
     <!--
       - SearchView hint
@@ -172,6 +215,11 @@
     <string name="input_field_label_intent_extra_key">参数名</string>
     <string name="input_field_label_event_state">状态</string>
     <string name="input_field_toggle_event_type">场景新状态</string>
+    <string name="input_field_label_change_counter_operation_value">价值</string>
+    <string name="input_field_label_change_counter_name">计数器名称</string>
+    <string name="input_field_label_timer_duration">之后 (ms)</string>
+    <string name="input_field_label_comparison_value">价值</string>
+    <string name="input_field_label_timer_duration_no_unit">之后</string>
 
     <!--
       - Dropdown input fields texts.
@@ -229,18 +277,22 @@
     <string name="dropdown_helper_text_click_position_type_on_position">点击自定义坐标位置</string>
 
     <!-- Dropdown field for selecting the intent sending type. -->
+    <string name="dropdown_label_intent_extra_value_type">参数值类型</string>
     <string name="dropdown_label_intent_sending_type">类型</string>
+
+    <string name="dropdown_label_comparison_operator">操作员</string>
+
+    <string name="dropdown_label_time_unit">时间单位</string>
 
     <!--
       - Content description texts.
       - They are use as accessibility texts for visually impaired people. They will not be displayed but spoken.
       -->
-    <string name="content_desc_drag_and_drop">拖放以重新排序元素</string>
     <string name="content_desc_event_state">事件的状态</string>
     <string name="content_desc_conditions_count">本次事件的条件数</string>
     <string name="content_desc_actions_count">此事件中的操作数</string>
     <string name="content_desc_image_condition">要被检测的图像</string>
     <string name="content_desc_open_event_list">打开脚本列表</string>
-    <string name="content_desc_action_icon">这个图标标注动作类型</string>
     <string name="content_desc_application_icon">应用图标</string>
+
 </resources>

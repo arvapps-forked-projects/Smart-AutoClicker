@@ -29,7 +29,7 @@ import com.buzbuz.smartautoclicker.core.ui.overlays.Overlay
 import com.buzbuz.smartautoclicker.core.ui.overlays.FullscreenOverlay
 import com.buzbuz.smartautoclicker.core.ui.overlays.manager.navigation.OverlayNavigationRequest
 import com.buzbuz.smartautoclicker.core.ui.overlays.manager.navigation.OverlayNavigationRequestStack
-import com.buzbuz.smartautoclicker.core.ui.overlays.menu.OverlayMenuPositionDataSource
+import com.buzbuz.smartautoclicker.core.ui.overlays.menu.common.OverlayMenuPositionDataSource
 import com.buzbuz.smartautoclicker.core.ui.utils.internal.LifoStack
 
 import kotlinx.coroutines.flow.Flow
@@ -205,7 +205,7 @@ class OverlayManager internal constructor(context: Context) {
     }
 
     /** @return true if the overlay stack has been hidden via [hideAll], false if not. */
-    private fun isStackHidden(): Boolean =
+    fun isStackHidden(): Boolean =
         lifecyclesRegistry.haveStates()
 
     fun isOverlayStackVisible(): Boolean =

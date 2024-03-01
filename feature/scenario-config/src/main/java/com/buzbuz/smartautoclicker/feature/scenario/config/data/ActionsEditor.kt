@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,36 +18,38 @@ package com.buzbuz.smartautoclicker.feature.scenario.config.data
 
 import com.buzbuz.smartautoclicker.core.domain.model.AND
 import com.buzbuz.smartautoclicker.core.domain.model.action.Action
+import com.buzbuz.smartautoclicker.core.domain.model.action.EventToggle
 import com.buzbuz.smartautoclicker.core.domain.model.action.IntentExtra
-import com.buzbuz.smartautoclicker.core.domain.model.event.Event
+import com.buzbuz.smartautoclicker.core.domain.model.event.ImageEvent
+import com.buzbuz.smartautoclicker.core.domain.model.event.TriggerEvent
 import com.buzbuz.smartautoclicker.feature.scenario.config.data.base.ListEditor
-import com.buzbuz.smartautoclicker.feature.scenario.config.utils.isValidInEvent
 
 import kotlinx.coroutines.flow.StateFlow
 
-class ActionsEditor(
+internal class ActionsEditor<Parent>(
     onListUpdated: (List<Action>) -> Unit,
-    parentItem: StateFlow<Event?>,
-): ListEditor<Action, Event>(onListUpdated, parentItem = parentItem) {
+    parentItem: StateFlow<Parent?>,
+): ListEditor<Action, Parent>(onListUpdated, parentItem = parentItem) {
 
-    val intentExtraEditor = object : ListEditor<IntentExtra<out Any>, Action>(
+    val intentExtraEditor: ListEditor<IntentExtra<out Any>, Action> = ListEditor(
         onListUpdated = ::onEditedActionIntentExtraUpdated,
         canBeEmpty = true,
         parentItem = editedItem,
-    ) {
-        override fun areItemsTheSame(a: IntentExtra<out Any>, b: IntentExtra<out Any>): Boolean = a.id == b.id
-        override fun isItemComplete(item: IntentExtra<out Any>, parent: Action?): Boolean = item.isComplete()
-    }
+    )
 
-    override fun areItemsTheSame(a: Action, b: Action): Boolean = a.id == b.id
-
-    override fun isItemComplete(item: Action, parent: Event?): Boolean =
-        item.isValidInEvent(parent)
+    val eventToggleEditor: ListEditor<EventToggle, Action> = ListEditor(
+        onListUpdated = ::onEditedActionEventToggleUpdated,
+        canBeEmpty = true,
+        parentItem = editedItem,
+    )
 
     override fun startItemEdition(item: Action) {
         super.startItemEdition(item)
-        if (item is Action.Intent) {
-            intentExtraEditor.startEdition(item.extras ?: emptyList())
+
+        when (item) {
+            is Action.Intent -> intentExtraEditor.startEdition(item.extras ?: emptyList())
+            is Action.ToggleEvent -> eventToggleEditor.startEdition(item.eventToggles)
+            else -> Unit
         }
     }
 
@@ -56,10 +58,31 @@ class ActionsEditor(
         super.stopItemEdition()
     }
 
+    override fun itemCanBeSaved(item: Action?, parent: Parent?): Boolean =
+        if (item is Action.Click) {
+            when (parent) {
+                is TriggerEvent ->
+                    item.isComplete() && item.positionType != Action.Click.PositionType.ON_DETECTED_CONDITION
+
+                is ImageEvent ->
+                    if (item.isComplete()) !(parent.conditionOperator == AND && !item.isClickOnConditionValid())
+                    else false
+
+                else -> item.isComplete()
+            }
+        } else item?.isComplete() ?: false
+
     private fun onEditedActionIntentExtraUpdated(extras: List<IntentExtra<out Any>>) {
         val action = editedItem.value
         if (action == null || action !is Action.Intent) return
 
         updateEditedItem(action.copy(extras = extras))
+    }
+
+    private fun onEditedActionEventToggleUpdated(eventToggles: List<EventToggle>) {
+        val action = editedItem.value
+        if (action == null || action !is Action.ToggleEvent) return
+
+        updateEditedItem(action.copy(eventToggles = eventToggles))
     }
 }

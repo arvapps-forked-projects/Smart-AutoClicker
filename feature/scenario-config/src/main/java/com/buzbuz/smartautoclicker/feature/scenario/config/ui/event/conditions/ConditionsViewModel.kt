@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,12 +26,17 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 
 import com.buzbuz.smartautoclicker.core.domain.Repository
+import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
 import com.buzbuz.smartautoclicker.feature.billing.IBillingRepository
 import com.buzbuz.smartautoclicker.feature.billing.ProModeAdvantage
-import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
+import com.buzbuz.smartautoclicker.core.domain.model.condition.ImageCondition
+import com.buzbuz.smartautoclicker.core.domain.model.condition.TriggerCondition
+import com.buzbuz.smartautoclicker.core.domain.model.event.Event
 import com.buzbuz.smartautoclicker.feature.scenario.config.domain.EditionRepository
 import com.buzbuz.smartautoclicker.core.ui.monitoring.MonitoredViewsManager
 import com.buzbuz.smartautoclicker.core.ui.monitoring.MonitoredViewType
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.condition.trigger.TriggerConditionTypeChoice
+import com.buzbuz.smartautoclicker.feature.scenario.config.utils.getImageConditionBitmap
 
 import kotlinx.coroutines.*
 
@@ -49,7 +54,7 @@ class ConditionsViewModel(application: Application) : AndroidViewModel(applicati
     private val monitoredViewsManager: MonitoredViewsManager = MonitoredViewsManager.getInstance()
 
     /** Currently configured event. */
-    val configuredEventConditions = editionRepository.editionState.editedEventConditionsState
+    val configuredEventConditions: Flow<List<Condition>> = editionRepository.editionState.editedEventConditionsState
         .mapNotNull { it.value }
 
     /** Tells if the limitation in conditions count have been reached. */
@@ -59,40 +64,42 @@ class ConditionsViewModel(application: Application) : AndroidViewModel(applicati
         }
 
     /** Tells if there is at least one condition to copy. */
-    val canCopyCondition: Flow<Boolean> = combine(
-        repository.getAllConditions(),
-        configuredEventConditions,
-        editionRepository.editionState.eventsState
-    ) { dbConds, editedConds, scenarioEvents ->
-
-        if (dbConds.isNotEmpty()) return@combine true
-        if (editedConds.isNotEmpty()) return@combine true
-
-        scenarioEvents.value?.forEach { event ->
-            if (event.conditions.isNotEmpty()) return@combine true
-        }
-        false
-    }
+    val canCopyCondition: Flow<Boolean> = editionRepository.editionState.canCopyConditions
 
     /** Tells if the pro mode billing flow is being displayed. */
     val isBillingFlowDisplayed: Flow<Boolean> = billingRepository.isBillingFlowInProcess
 
-    /**
-     * Create a new condition with the default values from configuration.
-     *
-     * @param context the Android Context.
-     * @param area the area of the condition to create.
-     * @param bitmap the image for the condition to create.
-     */
-    fun createCondition(context: Context, area: Rect, bitmap: Bitmap): Condition =
-        editionRepository.editedItemsBuilder.createNewCondition(context, area, bitmap)
+    fun getEditedEvent(): Event? = editionRepository.editionState.getEditedEvent()
 
     /**
      * Get a new condition based on the provided one.
      * @param condition the condition to copy.
      */
-    fun createNewConditionFromCopy(condition: Condition): Condition =
-        editionRepository.editedItemsBuilder.createNewConditionFrom(condition)
+    fun createNewImageConditionFromCopy(condition: ImageCondition): ImageCondition =
+        editionRepository.editedItemsBuilder.createNewImageConditionFrom(condition)
+
+    /**
+     * Create a new condition with the default values from configuration.
+     *
+     * @param context the Android Context.
+     * @param type the type of condition to create.
+     */
+    fun createNewTriggerCondition(context: Context, type: TriggerConditionTypeChoice): TriggerCondition =
+        when (type) {
+            TriggerConditionTypeChoice.OnBroadcastReceived ->
+                editionRepository.editedItemsBuilder.createNewOnBroadcastReceived(context)
+            TriggerConditionTypeChoice.OnCounterReached ->
+                editionRepository.editedItemsBuilder.createNewOnCounterReached(context)
+            TriggerConditionTypeChoice.OnTimerReached ->
+                editionRepository.editedItemsBuilder.createNewOnTimerReached(context)
+        }
+
+    /**
+     * Get a new condition based on the provided one.
+     * @param condition the condition to copy.
+     */
+    fun createNewTriggerConditionFromCopy(condition: TriggerCondition): TriggerCondition =
+        editionRepository.editedItemsBuilder.createNewTriggerConditionFrom(condition)
 
     fun startConditionEdition(condition: Condition) = editionRepository.startConditionEdition(condition)
 
@@ -114,27 +121,8 @@ class ConditionsViewModel(application: Application) : AndroidViewModel(applicati
      * @param condition the condition to load the bitmap of.
      * @param onBitmapLoaded the callback notified upon completion.
      */
-    fun getConditionBitmap(condition: Condition, onBitmapLoaded: (Bitmap?) -> Unit): Job? {
-        if (condition.bitmap != null) {
-            onBitmapLoaded.invoke(condition.bitmap)
-            return null
-        }
-
-        if (condition.path != null) {
-            return viewModelScope.launch(Dispatchers.IO) {
-                val bitmap = repository.getBitmap(condition.path!!, condition.area.width(), condition.area.height())
-
-                if (isActive) {
-                    withContext(Dispatchers.Main) {
-                        onBitmapLoaded.invoke(bitmap)
-                    }
-                }
-            }
-        }
-
-        onBitmapLoaded.invoke(null)
-        return null
-    }
+    fun getConditionBitmap(condition: ImageCondition, onBitmapLoaded: (Bitmap?) -> Unit): Job =
+        getImageConditionBitmap(repository, condition, onBitmapLoaded)
 
     fun onConditionCountReachedAddCopyClicked(context: Context) {
         billingRepository.startBillingActivity(context, ProModeAdvantage.Limitation.CONDITION_COUNT_LIMIT)

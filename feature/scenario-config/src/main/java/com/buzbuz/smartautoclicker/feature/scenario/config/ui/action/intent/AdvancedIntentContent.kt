@@ -18,7 +18,6 @@ package com.buzbuz.smartautoclicker.feature.scenario.config.ui.action.intent
 
 import android.content.Context
 import android.text.InputFilter
-import android.text.InputType
 import android.view.LayoutInflater
 import android.view.ViewGroup
 
@@ -27,19 +26,27 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 
+import com.buzbuz.smartautoclicker.core.domain.model.action.IntentExtra
 import com.buzbuz.smartautoclicker.core.ui.bindings.dropdown.DropdownItem
 import com.buzbuz.smartautoclicker.core.ui.bindings.dropdown.setItems
+import com.buzbuz.smartautoclicker.core.ui.bindings.dropdown.setSelectedItem
+import com.buzbuz.smartautoclicker.core.ui.bindings.setButtonVisibility
 import com.buzbuz.smartautoclicker.core.ui.bindings.setLabel
 import com.buzbuz.smartautoclicker.core.ui.bindings.setOnTextChangedListener
-import com.buzbuz.smartautoclicker.core.ui.bindings.dropdown.setSelectedItem
 import com.buzbuz.smartautoclicker.core.ui.bindings.setText
-import com.buzbuz.smartautoclicker.core.domain.model.action.IntentExtra
 import com.buzbuz.smartautoclicker.core.ui.bindings.setError
+import com.buzbuz.smartautoclicker.core.ui.bindings.setNumericValue
+import com.buzbuz.smartautoclicker.core.ui.bindings.setOnCheckboxClickedListener
+import com.buzbuz.smartautoclicker.core.ui.bindings.setTextValue
+import com.buzbuz.smartautoclicker.core.ui.bindings.setup
 import com.buzbuz.smartautoclicker.core.ui.overlays.manager.OverlayManager
 import com.buzbuz.smartautoclicker.core.ui.overlays.dialog.NavBarDialogContent
 import com.buzbuz.smartautoclicker.feature.scenario.config.R
 import com.buzbuz.smartautoclicker.feature.scenario.config.databinding.ContentIntentConfigAdvancedBinding
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.common.intent.IntentActionsSelectionDialog
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.action.intent.component.ComponentSelectionDialog
 import com.buzbuz.smartautoclicker.feature.scenario.config.ui.action.intent.extras.ExtraConfigDialog
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.action.intent.flags.FlagsSelectionDialog
 
 import kotlinx.coroutines.launch
 
@@ -47,7 +54,7 @@ class AdvancedIntentContent(appContext: Context) : NavBarDialogContent(appContex
 
     /** View model for the container dialog. */
     private val dialogViewModel: IntentViewModel by lazy {
-        ViewModelProvider(dialogController).get(IntentViewModel::class.java)
+        ViewModelProvider(dialogController)[IntentViewModel::class.java]
     }
 
     /** View binding for all views in this content. */
@@ -78,25 +85,28 @@ class AdvancedIntentContent(appContext: Context) : NavBarDialogContent(appContex
             )
 
             editActionLayout.apply {
-                setLabel(R.string.input_field_label_intent_action)
+                setup(R.string.input_field_label_intent_action, R.drawable.ic_search, disableInputWithCheckbox = false)
                 setOnTextChangedListener { dialogViewModel.setIntentAction(it.toString()) }
+                setOnCheckboxClickedListener { showActionsDialog() }
             }
             dialogController.hideSoftInputOnFocusLoss(editActionLayout.textField)
 
             editFlagsLayout.apply {
-                setLabel(R.string.input_field_label_intent_flags)
+                setup(R.string.input_field_label_intent_flags, R.drawable.ic_search, disableInputWithCheckbox = false)
                 setOnTextChangedListener {
                     dialogViewModel.setIntentFlags(
                         try { if (it.isNotEmpty()) it.toString().toInt() else null }
                         catch (nfe: NumberFormatException) { null }
                     )
                 }
+                setOnCheckboxClickedListener { showFlagsDialog() }
             }
             dialogController.hideSoftInputOnFocusLoss(editFlagsLayout.textField)
 
             editComponentNameLayout.apply {
-                setLabel(R.string.input_field_label_intent_component_name)
+                setup(R.string.input_field_label_intent_component_name, R.drawable.ic_search, disableInputWithCheckbox = false)
                 setOnTextChangedListener { dialogViewModel.setComponentName(it.toString()) }
+                setOnCheckboxClickedListener { showComponentNameDialog() }
             }
             dialogController.hideSoftInputOnFocusLoss(editComponentNameLayout.textField)
 
@@ -109,37 +119,74 @@ class AdvancedIntentContent(appContext: Context) : NavBarDialogContent(appContex
     override fun onViewCreated() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch { dialogViewModel.name.collect(::updateClickName) }
+                launch { dialogViewModel.name.collect(viewBinding.editNameLayout::setText) }
                 launch { dialogViewModel.nameError.collect(viewBinding.editNameLayout::setError)}
-                launch { dialogViewModel.isBroadcast.collect(::updateIsBroadcast) }
-                launch { dialogViewModel.action.collect(::updateIntentAction) }
+                launch { dialogViewModel.sendingType.collect(::updateSendingType) }
+                launch { dialogViewModel.action.collect(viewBinding.editActionLayout::setTextValue) }
                 launch { dialogViewModel.actionError.collect(viewBinding.editActionLayout::setError) }
-                launch { dialogViewModel.flags.collect(::updateIntentFlags) }
-                launch { dialogViewModel.componentName.collect(::updateComponentName) }
+                launch { dialogViewModel.flags.collect(viewBinding.editFlagsLayout::setNumericValue) }
+                launch { dialogViewModel.componentName.collect(viewBinding.editComponentNameLayout::setTextValue) }
                 launch { dialogViewModel.componentNameError.collect(viewBinding.editComponentNameLayout::setError) }
                 launch { dialogViewModel.extras.collect(extrasAdapter::submitList) }
             }
         }
     }
 
-    private fun updateClickName(newName: String?) {
-        viewBinding.editNameLayout.setText(newName)
+    private fun updateSendingType(type: DropdownItem) {
+        viewBinding.intentSendingTypeField.setSelectedItem(type)
+
+        when (type) {
+            dialogViewModel.sendingTypeActivity -> {
+                viewBinding.editComponentNameLayout.setButtonVisibility(true)
+                viewBinding.editActionLayout.setButtonVisibility(true)
+            }
+            dialogViewModel.sendingTypeBroadcast -> {
+                viewBinding.editComponentNameLayout.setButtonVisibility(false)
+                viewBinding.editActionLayout.setButtonVisibility(false)
+            }
+        }
     }
 
-    private fun updateIsBroadcast(item: DropdownItem) {
-        viewBinding.intentSendingTypeField.setSelectedItem(item)
+    private fun showActionsDialog() {
+        OverlayManager.getInstance(context).navigateTo(
+            context = context,
+            newOverlay = IntentActionsSelectionDialog(
+                currentAction = dialogViewModel.getConfiguredIntentAction(),
+                onConfigComplete = { newAction ->
+                    dialogViewModel.setIntentAction(newAction ?: "")
+                    viewBinding.editActionLayout.textField.setText(newAction)
+                },
+            ),
+            hideCurrent = true,
+        )
     }
 
-    private fun updateIntentAction(action: String?) {
-        viewBinding.editActionLayout.setText(action)
+    private fun showFlagsDialog() {
+        OverlayManager.getInstance(context).navigateTo(
+            context = context,
+            newOverlay = FlagsSelectionDialog(
+                currentFlags = dialogViewModel.getConfiguredIntentFlags(),
+                startActivityFlags = !dialogViewModel.isConfiguredIntentBroadcast(),
+                onConfigComplete = { newFlags ->
+                    dialogViewModel.setIntentFlags(newFlags)
+                    viewBinding.editFlagsLayout.setNumericValue(newFlags.toString())
+                },
+            ),
+            hideCurrent = true,
+        )
     }
 
-    private fun updateIntentFlags(flags: String) {
-        viewBinding.editFlagsLayout.setText(flags, InputType.TYPE_CLASS_NUMBER)
-    }
-
-    private fun updateComponentName(componentName: String?) {
-        viewBinding.editComponentNameLayout.setText(componentName)
+    private fun showComponentNameDialog() {
+        OverlayManager.getInstance(context).navigateTo(
+            context = context,
+            newOverlay = ComponentSelectionDialog(
+                onApplicationSelected = { newCompName ->
+                    dialogViewModel.setComponentName(newCompName)
+                    viewBinding.editComponentNameLayout.setTextValue(newCompName.flattenToString())
+                },
+            ),
+            hideCurrent = true,
+        )
     }
 
     private fun showExtraDialog(extra: IntentExtra<out Any>) {

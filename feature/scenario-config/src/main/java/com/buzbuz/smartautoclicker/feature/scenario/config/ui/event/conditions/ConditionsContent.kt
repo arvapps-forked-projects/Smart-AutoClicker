@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,20 +25,33 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
 
+import com.buzbuz.smartautoclicker.core.domain.model.condition.ImageCondition
+import com.buzbuz.smartautoclicker.core.domain.model.condition.TriggerCondition
+import com.buzbuz.smartautoclicker.core.domain.model.event.ImageEvent
+import com.buzbuz.smartautoclicker.core.domain.model.event.TriggerEvent
 import com.buzbuz.smartautoclicker.core.ui.bindings.setEmptyText
 import com.buzbuz.smartautoclicker.core.ui.bindings.updateState
+import com.buzbuz.smartautoclicker.core.ui.databinding.IncludeLoadableListBinding
+import com.buzbuz.smartautoclicker.core.ui.overlays.dialog.MultiChoiceDialog
 import com.buzbuz.smartautoclicker.core.ui.overlays.dialog.NavBarDialogContent
-import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
+import com.buzbuz.smartautoclicker.core.ui.overlays.dialog.viewModels
+import com.buzbuz.smartautoclicker.core.ui.overlays.manager.OverlayManager
 import com.buzbuz.smartautoclicker.feature.scenario.config.R
-import com.buzbuz.smartautoclicker.feature.scenario.config.ui.condition.ConditionDialog
-import com.buzbuz.smartautoclicker.feature.scenario.config.ui.condition.ConditionSelectorMenu
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.condition.OnConditionConfigCompleteListener
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.condition.image.ImageConditionDialog
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.condition.image.CaptureMenu
 import com.buzbuz.smartautoclicker.feature.scenario.config.ui.condition.copy.ConditionCopyDialog
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.condition.trigger.allTriggerConditionChoices
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.condition.trigger.broadcast.BroadcastReceivedConditionDialog
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.condition.trigger.counter.CounterReachedConditionDialog
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.condition.trigger.timer.TimerReachedConditionDialog
 import com.buzbuz.smartautoclicker.feature.scenario.config.utils.ALPHA_DISABLED_ITEM
 import com.buzbuz.smartautoclicker.feature.scenario.config.utils.ALPHA_ENABLED_ITEM
-import com.buzbuz.smartautoclicker.core.ui.databinding.IncludeLoadableListBinding
-import com.buzbuz.smartautoclicker.core.ui.overlays.manager.OverlayManager
-import com.buzbuz.smartautoclicker.core.ui.overlays.dialog.viewModels
 
 import kotlinx.coroutines.launch
 
@@ -46,11 +59,16 @@ class ConditionsContent(appContext: Context) : NavBarDialogContent(appContext) {
 
     /** View model for this content. */
     private val viewModel: ConditionsViewModel by viewModels()
-
     /** View binding for all views in this content. */
     private lateinit var viewBinding: IncludeLoadableListBinding
-    /** Adapter for the list of conditions. */
-    private lateinit var conditionsAdapter: ConditionAdapter
+
+    private val conditionConfigDialogListener: OnConditionConfigCompleteListener by lazy {
+        object : OnConditionConfigCompleteListener {
+            override fun onConfirmClicked() { viewModel.upsertEditedCondition() }
+            override fun onDeleteClicked() { viewModel.removeEditedCondition() }
+            override fun onDismissClicked() { viewModel.dismissEditedCondition() }
+        }
+    }
 
     /** Tells if the billing flow has been triggered by the condition count limit. */
     private var conditionLimitReachedClick: Boolean = false
@@ -58,27 +76,47 @@ class ConditionsContent(appContext: Context) : NavBarDialogContent(appContext) {
     override fun createCopyButtonsAreAvailable(): Boolean = true
 
     override fun onCreateView(container: ViewGroup): ViewGroup {
-        conditionsAdapter = ConditionAdapter(
-            conditionClickedListener = ::onConditionClicked,
-            bitmapProvider = viewModel::getConditionBitmap,
-            itemViewBound = ::onConditionItemBound,
-        )
+        viewBinding = IncludeLoadableListBinding.inflate(LayoutInflater.from(context), container, false)
 
-        viewBinding = IncludeLoadableListBinding.inflate(LayoutInflater.from(context), container, false).apply {
-            setEmptyText(
-                id = R.string.message_empty_conditions,
-                secondaryId = R.string.message_empty_secondary_condition_list,
-            )
-            list.apply {
-                adapter = conditionsAdapter
-                layoutManager = GridLayoutManager(
-                    context,
-                    2,
-                )
-            }
+        when (viewModel.getEditedEvent()) {
+            is ImageEvent -> setupImageEventView()
+            is TriggerEvent -> setupTriggerEventView()
+            null -> dialogController.back()
         }
 
         return viewBinding.root
+    }
+
+    private fun setupImageEventView() {
+        viewBinding.apply {
+            setEmptyText(
+                id = R.string.message_empty_image_conditions,
+                secondaryId = R.string.message_empty_secondary_image_condition_list,
+            )
+            list.apply {
+                adapter = ImageConditionAdapter(
+                    conditionClickedListener = ::onImageConditionClicked,
+                    bitmapProvider = viewModel::getConditionBitmap,
+                    itemViewBound = ::onConditionItemBound,
+                )
+                layoutManager = GridLayoutManager(context, 2)
+            }
+        }
+    }
+
+    private fun setupTriggerEventView() {
+        viewBinding.apply {
+            setEmptyText(
+                id = R.string.message_empty_trigger_conditions,
+                secondaryId = R.string.message_empty_secondary_trigger_condition_list,
+            )
+            list.apply {
+                adapter = TriggerConditionAdapter(
+                    conditionClickedListener = ::onTriggerConditionClicked,
+                )
+                layoutManager = LinearLayoutManager(context, RecyclerView.VERTICAL, false)
+            }
+        }
     }
 
     override fun onViewCreated() {
@@ -117,28 +155,17 @@ class ConditionsContent(appContext: Context) : NavBarDialogContent(appContext) {
 
     override fun onCreateButtonClicked() {
         debounceUserInteraction {
-            OverlayManager.getInstance(context).navigateTo(
-                context = context,
-                newOverlay = ConditionSelectorMenu(
-                    onConditionSelected = { area, bitmap ->
-                        showConditionConfigDialog(viewModel.createCondition(context, area, bitmap))
-                    }
-                ),
-                hideCurrent = true,
-            )
+            when (viewModel.getEditedEvent()) {
+                is ImageEvent -> showImageConditionCaptureOverlay()
+                is TriggerEvent -> showTriggerConditionTypeSelectionDialog()
+                null -> return@debounceUserInteraction
+            }
         }
     }
 
     override fun onCopyButtonClicked() {
         debounceUserInteraction {
-            OverlayManager.getInstance(context).navigateTo(
-                context = context,
-                newOverlay = ConditionCopyDialog(
-                    onConditionSelected = { conditionSelected ->
-                        showConditionConfigDialog(viewModel.createNewConditionFromCopy(conditionSelected))
-                    },
-                ),
-            )
+            showCopyDialog()
         }
     }
 
@@ -151,9 +178,15 @@ class ConditionsContent(appContext: Context) : NavBarDialogContent(appContext) {
         }
     }
 
-    private fun onConditionClicked(condition: Condition) {
+    private fun onImageConditionClicked(condition: ImageCondition) {
         debounceUserInteraction {
-            showConditionConfigDialog(condition)
+            showImageConditionConfigDialog(condition)
+        }
+    }
+
+    private fun onTriggerConditionClicked(condition: TriggerCondition) {
+        debounceUserInteraction {
+            showTriggerConditionDialog(condition)
         }
     }
 
@@ -184,22 +217,81 @@ class ConditionsContent(appContext: Context) : NavBarDialogContent(appContext) {
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
     private fun updateConditionList(newItems: List<Condition>?) {
-        viewBinding.updateState(newItems)
-        conditionsAdapter.submitList(newItems)
+        viewBinding.apply {
+            updateState(newItems)
+            (list.adapter as ListAdapter<Condition, RecyclerView.ViewHolder>).submitList(newItems)
+        }
     }
 
-    private fun showConditionConfigDialog(condition: Condition) {
+    private fun showImageConditionCaptureOverlay() {
+        OverlayManager.getInstance(context).navigateTo(
+            context = context,
+            newOverlay = CaptureMenu(onConditionSelected = ::showImageConditionConfigDialog),
+            hideCurrent = true,
+        )
+    }
+
+    private fun showImageConditionConfigDialog(condition: ImageCondition) {
         viewModel.startConditionEdition(condition)
 
         OverlayManager.getInstance(context).navigateTo(
             context = context,
-            newOverlay = ConditionDialog(
-                onConfirmClickedListener = viewModel::upsertEditedCondition,
-                onDeleteClickedListener = viewModel::removeEditedCondition,
-                onDismissClickedListener = viewModel::dismissEditedCondition
-            ),
+            newOverlay = ImageConditionDialog(conditionConfigDialogListener),
             hideCurrent = true,
+        )
+    }
+
+    private fun showTriggerConditionTypeSelectionDialog() {
+        OverlayManager.getInstance(context).navigateTo(
+            context = context,
+            newOverlay = MultiChoiceDialog(
+                theme = R.style.AppTheme,
+                dialogTitleText = R.string.dialog_overlay_title_trigger_condition_type,
+                choices = allTriggerConditionChoices(),
+                onChoiceSelected = { choice ->
+                    showTriggerConditionDialog(viewModel.createNewTriggerCondition(context, choice))
+                },
+            ),
+            hideCurrent = false,
+        )
+    }
+
+    private fun showTriggerConditionDialog(condition: TriggerCondition) {
+        viewModel.startConditionEdition(condition)
+
+        val configOverlay = when (condition) {
+            is TriggerCondition.OnBroadcastReceived ->
+                BroadcastReceivedConditionDialog(conditionConfigDialogListener)
+            is TriggerCondition.OnCounterCountReached ->
+                CounterReachedConditionDialog(conditionConfigDialogListener)
+            is TriggerCondition.OnTimerReached ->
+                TimerReachedConditionDialog(conditionConfigDialogListener)
+        }
+
+        OverlayManager.getInstance(context).navigateTo(
+            context = context,
+            newOverlay = configOverlay,
+            hideCurrent = true,
+        )
+    }
+
+    private fun showCopyDialog() {
+        OverlayManager.getInstance(context).navigateTo(
+            context = context,
+            newOverlay = ConditionCopyDialog(
+                onConditionSelected = { conditionSelected ->
+                    when (conditionSelected) {
+                        is ImageCondition -> showImageConditionConfigDialog(
+                            viewModel.createNewImageConditionFromCopy(conditionSelected)
+                        )
+                        is TriggerCondition -> showTriggerConditionDialog(
+                            viewModel.createNewTriggerConditionFromCopy(conditionSelected)
+                        )
+                    }
+                },
+            ),
         )
     }
 }

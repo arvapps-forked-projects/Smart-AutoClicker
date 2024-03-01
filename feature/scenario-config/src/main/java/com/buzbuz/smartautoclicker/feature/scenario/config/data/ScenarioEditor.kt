@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,21 +16,32 @@
  */
 package com.buzbuz.smartautoclicker.feature.scenario.config.data
 
-import com.buzbuz.smartautoclicker.core.domain.model.endcondition.EndCondition
+import com.buzbuz.smartautoclicker.core.domain.model.action.Action
+import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
 import com.buzbuz.smartautoclicker.core.domain.model.event.Event
+import com.buzbuz.smartautoclicker.core.domain.model.event.ImageEvent
+import com.buzbuz.smartautoclicker.core.domain.model.event.TriggerEvent
 import com.buzbuz.smartautoclicker.core.domain.model.scenario.Scenario
-import com.buzbuz.smartautoclicker.feature.scenario.config.data.base.ListEditor
+import com.buzbuz.smartautoclicker.feature.scenario.config.data.events.EventsEditor
+import com.buzbuz.smartautoclicker.feature.scenario.config.data.events.ImageEventsEditor
+import com.buzbuz.smartautoclicker.feature.scenario.config.data.events.TriggerEventsEditor
 import com.buzbuz.smartautoclicker.feature.scenario.config.domain.model.EditedElementState
+import com.buzbuz.smartautoclicker.feature.scenario.config.domain.model.EditedListState
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
 
+@OptIn(ExperimentalCoroutinesApi::class)
 internal class ScenarioEditor {
 
     private val referenceScenario: MutableStateFlow<Scenario?> = MutableStateFlow(null)
     private val _editedScenario: MutableStateFlow<Scenario?> = MutableStateFlow(null)
+    private val _currentEventEditor: MutableStateFlow<EventsEditor<Event, Condition>?> = MutableStateFlow(null)
 
     val editedScenario: StateFlow<Scenario?> = _editedScenario
     val editedScenarioState: Flow<EditedElementState<Scenario>> = combine(referenceScenario, _editedScenario) { ref, edit ->
@@ -43,23 +54,67 @@ internal class ScenarioEditor {
         EditedElementState(edit, hasChanged, canBeSaved)
     }
 
-    val eventsEditor = EventsEditor(::deleteAllReferencesToEvent, editedScenario)
-    val endConditionsEditor = object : ListEditor<EndCondition, Scenario>(canBeEmpty = true, parentItem = editedScenario) {
-        override fun areItemsTheSame(a: EndCondition, b: EndCondition): Boolean = a.id == b.id
-        override fun isItemComplete(item: EndCondition, parent: Scenario?): Boolean = item.isComplete()
+    private val imageEventsEditor = ImageEventsEditor(::deleteAllReferencesToEvent, editedScenario)
+    private val triggerEventsEditor = TriggerEventsEditor(::deleteAllReferencesToEvent, editedScenario)
+
+    val currentEventEditor: StateFlow<EventsEditor<Event, Condition>?> = _currentEventEditor
+
+    val allEditedEvents: Flow<List<Event>> =
+        combine(imageEventsEditor.allEditedItems, triggerEventsEditor.allEditedItems) { imageEvent, triggerEvents ->
+            buildList {
+                addAll(imageEvent)
+                addAll(triggerEvents)
+            }
+        }
+
+    val editedEvent: Flow<Event?> = currentEventEditor.flatMapLatest { eventsEditor ->
+        eventsEditor?.editedItem ?: emptyFlow()
     }
 
-    fun startEdition(scenario: Scenario, events: List<Event>, endConditions: List<EndCondition>) {
+    val editedImageEventListState: Flow<EditedListState<ImageEvent>> = imageEventsEditor.listState
+    val editedImageEventState: Flow<EditedElementState<ImageEvent>> = imageEventsEditor.editedItemState
+
+    val editedTriggerEventListState: Flow<EditedListState<TriggerEvent>> = triggerEventsEditor.listState
+    val editedTriggerEventState: Flow<EditedElementState<TriggerEvent>> = triggerEventsEditor.editedItemState
+
+    fun startEdition(scenario: Scenario, imageEvents: List<ImageEvent>, triggerEvents: List<TriggerEvent>) {
         referenceScenario.value = scenario
         _editedScenario.value = scenario
 
-        eventsEditor.startEdition(events)
-        endConditionsEditor.startEdition(endConditions)
+        imageEventsEditor.startEdition(imageEvents)
+        triggerEventsEditor.startEdition(triggerEvents)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun startEventEdition(event: Event) {
+        _currentEventEditor.value = when (event) {
+            is ImageEvent -> imageEventsEditor
+            is TriggerEvent -> triggerEventsEditor
+        } as EventsEditor<Event, Condition>
+
+        currentEventEditor.value?.startItemEdition(event)
+    }
+
+    fun updateEditedEvent(event: Event) =
+        currentEventEditor.value?.updateEditedItem(event)
+
+    fun updateActionsOrder(actions: List<Action>) =
+        currentEventEditor.value?.actionsEditor?.updateList(actions)
+
+    fun upsertEditedEvent() =
+        currentEventEditor.value?.upsertEditedItem()
+
+    fun deleteEditedEvent() =
+        currentEventEditor.value?.deleteEditedItem()
+
+    fun stopEventEdition() {
+        currentEventEditor.value?.stopItemEdition()
+        _currentEventEditor.value = null
     }
 
     fun stopEdition() {
-        endConditionsEditor.stopEdition()
-        eventsEditor.stopEdition()
+        imageEventsEditor.stopEdition()
+        triggerEventsEditor.stopEdition()
 
         referenceScenario.value = null
         _editedScenario.value = null
@@ -70,12 +125,23 @@ internal class ScenarioEditor {
         _editedScenario.value = item
     }
 
+    fun updateImageEventsOrder(newEvents: List<ImageEvent>) {
+        imageEventsEditor.updateList(newEvents)
+    }
+
+    fun getAllEditedEvents(): List<Event> = buildList {
+        imageEventsEditor.editedList.value?.let { addAll(it) }
+        triggerEventsEditor.editedList.value?.let { addAll(it) }
+    }
+
+    fun getEditedEvent(): Event? =
+        currentEventEditor.value?.editedItem?.value
+
+    fun getEditedImageEventsCount(): Int =
+        imageEventsEditor.editedList.value?.size ?: 0
+
     private fun deleteAllReferencesToEvent(event: Event) {
-        eventsEditor.deleteAllActionsReferencing(event)
-
-        endConditionsEditor.editedList.value
-            ?.filter { it.eventId != event.id }
-            ?.let { endConditionsEditor.updateList(it) }
-
+        imageEventsEditor.deleteAllEventToggleReferencing(event)
+        triggerEventsEditor.deleteAllEventToggleReferencing(event)
     }
 }

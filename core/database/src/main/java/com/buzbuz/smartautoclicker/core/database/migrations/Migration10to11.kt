@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,8 +16,20 @@
  */
 package com.buzbuz.smartautoclicker.core.database.migrations
 
+import android.content.ContentValues
+import androidx.room.ForeignKey
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+
+import com.buzbuz.smartautoclicker.core.base.migrations.SQLiteColumn
+import com.buzbuz.smartautoclicker.core.base.migrations.SQLiteTable
+import com.buzbuz.smartautoclicker.core.base.migrations.getSQLiteTableReference
+import com.buzbuz.smartautoclicker.core.base.migrations.copyColumn
+import com.buzbuz.smartautoclicker.core.base.migrations.forEachRow
+import com.buzbuz.smartautoclicker.core.database.ACTION_TABLE
+import com.buzbuz.smartautoclicker.core.database.CONDITION_TABLE
+import com.buzbuz.smartautoclicker.core.database.EVENT_TABLE
+import com.buzbuz.smartautoclicker.core.database.SCENARIO_TABLE
 import com.buzbuz.smartautoclicker.core.database.entity.ActionType
 import com.buzbuz.smartautoclicker.core.database.entity.ClickPositionType
 
@@ -30,204 +42,155 @@ import com.buzbuz.smartautoclicker.core.database.entity.ClickPositionType
  */
 object Migration10to11 : Migration(10, 11) {
 
+    private const val DETECTION_QUALITY_INCREASE = 600
+    private const val DETECTION_QUALITY_NEW_MAX = 3216
+
+
+    private val scenarioIdColumn = SQLiteColumn.PrimaryKey()
+    private val scenarioDetectionQualityColumn = SQLiteColumn.Int("detection_quality")
+
+    private val conditionIdColumn = SQLiteColumn.PrimaryKey()
+    private val conditionShouldBeDetectedColumn = SQLiteColumn.Boolean("shouldBeDetected")
+
+    private val actionIdColumn = SQLiteColumn.PrimaryKey()
+    private val actionEventIdColumn = SQLiteColumn.ForeignKey(
+        name = "eventId",
+        referencedTable = EVENT_TABLE, referencedColumn = "id", deleteAction = ForeignKey.CASCADE,
+    )
+    private val actionTypeColumn = SQLiteColumn.Text("type")
+    private val actionOldClickOnConditionColumn = SQLiteColumn.Boolean("clickOnCondition")
+    private val actionClickOnConditionIdColumn = SQLiteColumn.ForeignKey(
+        name = "clickOnConditionId", isNotNull = false,
+        referencedTable = CONDITION_TABLE, referencedColumn = "id", deleteAction = ForeignKey.SET_NULL,
+    )
+    private val actionToggleEventIdColumn = SQLiteColumn.ForeignKey(
+        name = "toggle_event_id", isNotNull = false,
+        referencedTable = EVENT_TABLE, referencedColumn = "id", deleteAction = ForeignKey.SET_NULL,
+    )
+
     override fun migrate(db: SupportSQLiteDatabase) {
-        db.apply {
-            migrateDetectionQuality()
+        db.getSQLiteTableReference(SCENARIO_TABLE).apply {
+            forEachScenario { id, oldQuality ->
+                updateDetectionQuality(
+                    id,
+                    (oldQuality + DETECTION_QUALITY_INCREASE).coerceAtMost(DETECTION_QUALITY_NEW_MAX)
+                )
+            }
+        }
 
-            execSQL(createTempActionTable)
-            execSQL(copyAllExceptChangedParams)
-            migrateToClickOnCondition()
+        val conditionTable = db.getSQLiteTableReference(CONDITION_TABLE)
+        val oldActionTable = db.getSQLiteTableReference(ACTION_TABLE)
+        val newActionTable = db.createTempActionTable()
 
-            execSQL(deleteOldActionTable)
+        newActionTable.copyAllActionsExceptChangedParams()
+        oldActionTable.forEachClick { id, eventId, clickOnCondition ->
+            newActionTable.apply {
+                if (clickOnCondition) {
+                    updateClickOnConditionToId(id, conditionTable.getEventFirstValidConditionId(eventId))
+                    updateClickPositionType(id, ClickPositionType.ON_DETECTED_CONDITION)
+                } else {
+                    updateClickPositionType(id, ClickPositionType.USER_SELECTED)
+                }
+            }
+        }
+        oldActionTable.dropTable()
 
-            execSQL(createEventIdIndexTable)
-            execSQL(createToggleEventIdIndexTable)
-            execSQL(createClickOnConditionIdIndexTable)
-
-            execSQL(renameTempActionTable)
+        newActionTable.apply {
+            createIndex(actionEventIdColumn, "index_action_table_eventId")
+            createIndex(actionToggleEventIdColumn, "index_action_table_toggle_event_id")
+            createIndex(actionClickOnConditionIdColumn, "index_action_table_clickOnConditionId")
+            alterTableRename(ACTION_TABLE)
         }
     }
 
-    // --- START Update detection quality migration --- //
-
-    private fun SupportSQLiteDatabase.migrateDetectionQuality() {
-        query(getAllScenario).use { cursor ->
-            // Nothing to do ?
-            if (cursor.count == 0) return
-            cursor.moveToFirst()
-
-            // Get all columns indexes
-            val idColumnIndex = cursor.getColumnIndex("id")
-            val qualityColumnIndex = cursor.getColumnIndex("detection_quality")
-            if (idColumnIndex < 0 || qualityColumnIndex < 0)
-                throw IllegalStateException("Can't find columns")
-
-            do {
-                val scenarioId = cursor.getLong(idColumnIndex)
-                val oldQuality = cursor.getInt(qualityColumnIndex)
-                val newQuality = (oldQuality + DETECTION_QUALITY_INCREASE).coerceAtMost(DETECTION_QUALITY_NEW_MAX)
-
-                execSQL(updateDetectionQuality(scenarioId, newQuality))
-            } while (cursor.moveToNext())
+    private fun SupportSQLiteDatabase.createTempActionTable(): SQLiteTable =
+        getSQLiteTableReference("temp_action_table").apply {
+            createTable(
+                columns = setOf(
+                    actionEventIdColumn,
+                    SQLiteColumn.Int("priority"),
+                    SQLiteColumn.Text("name"),
+                    SQLiteColumn.Text("type"),
+                    SQLiteColumn.Text("clickPositionType", isNotNull = false),
+                    SQLiteColumn.Int("x", isNotNull = false),
+                    SQLiteColumn.Int("y", isNotNull = false),
+                    actionClickOnConditionIdColumn,
+                    SQLiteColumn.Long("pressDuration", isNotNull = false),
+                    SQLiteColumn.Int("fromX", isNotNull = false),
+                    SQLiteColumn.Int("fromY", isNotNull = false),
+                    SQLiteColumn.Int("toX", isNotNull = false),
+                    SQLiteColumn.Int("toY", isNotNull = false),
+                    SQLiteColumn.Long("swipeDuration", isNotNull = false),
+                    SQLiteColumn.Long("pauseDuration", isNotNull = false),
+                    SQLiteColumn.Boolean("isAdvanced", isNotNull = false),
+                    SQLiteColumn.Boolean("isBroadcast", isNotNull = false),
+                    SQLiteColumn.Text("intent_action", isNotNull = false),
+                    SQLiteColumn.Text("component_name", isNotNull = false),
+                    SQLiteColumn.Int("flags", isNotNull = false),
+                    actionToggleEventIdColumn,
+                    SQLiteColumn.Text("toggle_type", isNotNull = false),
+                ),
+            )
         }
-    }
 
-    private val getAllScenario = """
-        SELECT `id`, `detection_quality`
-        FROM `scenario_table`
-    """.trimIndent()
+    private fun SQLiteTable.forEachScenario(closure: (id: Long, detectionQuality: Int) -> Unit): Unit =
+        forEachRow(null, scenarioIdColumn, scenarioDetectionQualityColumn, closure)
+
+    private fun SQLiteTable.forEachClick(closure: (id: Long, eventId: Long, clickOnCondition: Boolean) -> Unit): Unit =
+        forEachRow(
+            extraClause = "WHERE `type` = \"${ActionType.CLICK}\"",
+            actionIdColumn, actionEventIdColumn, actionTypeColumn, actionOldClickOnConditionColumn,
+        ) { id, eventId, _, clickOnCondition -> closure(id, eventId, clickOnCondition) }
+
+    private fun SQLiteTable.copyAllActionsExceptChangedParams() = insertIntoSelect(
+        fromTableName = ACTION_TABLE,
+        columnsToFromColumns = arrayOf(
+            copyColumn("`id`"), copyColumn("`eventId`"), copyColumn("`priority`"), copyColumn("`name`"), copyColumn("`type`"),
+            "`clickPositionType`" to "NULL",
+            copyColumn("`x`"), copyColumn("`y`"),
+            "`clickOnConditionId`" to "NULL",
+            copyColumn("`pressDuration`"), copyColumn("`fromX`"), copyColumn("`fromY`"), copyColumn("`toX`"), copyColumn("`toY`"),
+            copyColumn("`swipeDuration`"), copyColumn("`pauseDuration`"), copyColumn("`isAdvanced`"), copyColumn("`isBroadcast`"),
+            copyColumn("`intent_action`"), copyColumn("`component_name`"), copyColumn("`flags`"), copyColumn("`toggle_event_id`"),
+            copyColumn("`toggle_type`"),
+        )
+    )
+
+    private fun SQLiteTable.getEventFirstValidConditionId(eventId: Long): Long? {
+        var validConditionId: Long? = null
+
+        forEachRow(
+            extraClause = "WHERE `eventId` = $eventId AND `shouldBeDetected` = 1",
+            conditionIdColumn, conditionShouldBeDetectedColumn,
+        ) { id, shouldBeDetected ->
+
+            if (validConditionId == null && shouldBeDetected) {
+                validConditionId = id
+            }
+        }
+
+        return validConditionId
+    }
 
     /** Update the current detection quality to have at least the same quality (should overall be better). */
-    private fun updateDetectionQuality(id: Long, detectionQuality: Int) = """
-        UPDATE `scenario_table` 
-        SET `detection_quality` = $detectionQuality
-        WHERE `id` = $id
-    """.trimIndent()
+    private fun SQLiteTable.updateDetectionQuality(id: Long, detectionQuality: Int) = update(
+        extraClause = "WHERE `id` = $id",
+        contentValues = ContentValues().apply {
+            put("detection_quality", detectionQuality)
+        },
+    )
 
-    // --- END Update detection quality migration --- //
+    private fun SQLiteTable.updateClickPositionType(actionId: Long, positionType: ClickPositionType) = update(
+        extraClause = "WHERE `id` = $actionId",
+        contentValues = ContentValues().apply {
+            put("clickPositionType", "\"${positionType.name}\"")
+        },
+    )
 
-    // --- START Click on condition migration --- //
-    private fun SupportSQLiteDatabase.migrateToClickOnCondition() {
-        query(getAllClicks).use { cursor ->
-            // Nothing to do ?
-            if (cursor.count == 0) return
-            cursor.moveToFirst()
-
-            // Get all columns indexes
-            val idColumnIndex = cursor.getColumnIndex("id")
-            val eventIdColumnIndex = cursor.getColumnIndex("eventId")
-            val clickOnConditionIndex = cursor.getColumnIndex("clickOnCondition")
-            if (idColumnIndex < 0 || eventIdColumnIndex < 0 || clickOnConditionIndex < 0)
-                throw IllegalStateException("Can't find columns")
-
-            do {
-                val actionId = cursor.getLong(idColumnIndex)
-                if (cursor.getInt(clickOnConditionIndex) == 1) {
-                    execSQL(updateClickOnConditionToId(
-                        actionId = cursor.getLong(idColumnIndex),
-                        conditionId = getEventFirstValidConditionId(cursor.getLong(eventIdColumnIndex)),
-                    ))
-                    execSQL(updateClickPositionType(actionId, ClickPositionType.ON_DETECTED_CONDITION))
-                } else {
-                    execSQL(updateClickPositionType(actionId, ClickPositionType.USER_SELECTED))
-                }
-            } while (cursor.moveToNext())
-        }
-    }
-
-    private fun SupportSQLiteDatabase.getEventFirstValidConditionId(eventId: Long): Long? =
-        query(getEventConditions(eventId)).use { conditionsCursor ->
-            // Nothing to do ?
-            if (conditionsCursor.count == 0) return null
-            conditionsCursor.moveToFirst()
-
-            // Get all columns indexes
-            val conditionIdColumnIndex = conditionsCursor.getColumnIndex("id")
-            val shouldBeDetectedColumnIndex = conditionsCursor.getColumnIndex("shouldBeDetected")
-
-            if (conditionIdColumnIndex < 0 || shouldBeDetectedColumnIndex < 0)
-                throw IllegalStateException("Can't find columns")
-
-            do {
-                if (conditionsCursor.getInt(shouldBeDetectedColumnIndex) == 1)
-                    return conditionsCursor.getLong(conditionIdColumnIndex)
-            } while (conditionsCursor.moveToNext())
-
-            // No valid condition found
-            return null
-        }
-
-    private val createTempActionTable = """
-        CREATE TABLE IF NOT EXISTS `temp_action_table` (
-            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
-            `eventId` INTEGER NOT NULL, 
-            `priority` INTEGER NOT NULL, 
-            `name` TEXT NOT NULL, 
-            `type` TEXT NOT NULL, 
-            `clickPositionType` TEXT,
-            `x` INTEGER, 
-            `y` INTEGER, 
-            `clickOnConditionId` INTEGER, 
-            `pressDuration` INTEGER, 
-            `fromX` INTEGER, 
-            `fromY` INTEGER, 
-            `toX` INTEGER, 
-            `toY` INTEGER, 
-            `swipeDuration` INTEGER, 
-            `pauseDuration` INTEGER, 
-            `isAdvanced` INTEGER, 
-            `isBroadcast` INTEGER, 
-            `intent_action` TEXT, 
-            `component_name` TEXT, 
-            `flags` INTEGER, 
-            `toggle_event_id` INTEGER, 
-            `toggle_type` TEXT, 
-            FOREIGN KEY(`eventId`) REFERENCES `event_table`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , 
-            FOREIGN KEY(`clickOnConditionId`) REFERENCES `condition_table`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL , 
-            FOREIGN KEY(`toggle_event_id`) REFERENCES `event_table`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL 
-        )
-    """.trimIndent()
-
-    private val createEventIdIndexTable = """
-        CREATE INDEX IF NOT EXISTS `index_action_table_eventId` ON `temp_action_table` (`eventId`)
-    """.trimIndent()
-
-    private val createClickOnConditionIdIndexTable = """
-        CREATE INDEX IF NOT EXISTS `index_action_table_clickOnConditionId` ON `temp_action_table` (`clickOnConditionId`)
-    """.trimIndent()
-
-    private val createToggleEventIdIndexTable = """
-        CREATE INDEX IF NOT EXISTS `index_action_table_toggle_event_id` ON `temp_action_table` (`toggle_event_id`)
-    """.trimIndent()
-
-    private val copyAllExceptChangedParams = """
-        INSERT INTO temp_action_table (
-            `id`, `eventId`, `priority`, `name`, `type`, `clickPositionType`, `x`, `y`, `clickOnConditionId`, 
-            `pressDuration`, `fromX`, `fromY`, `toX`, `toY`, `swipeDuration`, `pauseDuration`, `isAdvanced`, 
-            `isBroadcast`, `intent_action`, `component_name`, `flags`, `toggle_event_id`, `toggle_type`
-        ) 
-        SELECT 
-            `id`, `eventId`, `priority`, `name`, `type`, NULL, `x`, `y`, NULL, `pressDuration`, 
-            `fromX`, `fromY`, `toX`, `toY`, `swipeDuration`, `pauseDuration`, `isAdvanced`, `isBroadcast`, 
-            `intent_action`, `component_name`, `flags`, `toggle_event_id`, `toggle_type`
-        FROM action_table
-    """.trimIndent()
-
-    private val getAllClicks = """
-        SELECT `id`, `eventId`, `type`, `x`, `y`, `clickOnCondition`
-        FROM `action_table`
-        WHERE `type` = "${ActionType.CLICK}"
-    """.trimIndent()
-
-    private fun getEventConditions(eventId: Long) = """
-        SELECT `id`, `eventId`, `shouldBeDetected`
-        FROM `condition_table`
-        WHERE `eventId` = "$eventId" AND `shouldBeDetected` = 1
-    """.trimIndent()
-
-    private fun updateClickPositionType(actionId: Long, positionType: ClickPositionType) = """
-        UPDATE `temp_action_table`
-        SET `clickPositionType` = "$positionType"
-        WHERE `id` = $actionId
-    """.trimIndent()
-
-    private fun updateClickOnConditionToId(actionId: Long, conditionId: Long?) = """
-        UPDATE `temp_action_table`
-        SET `clickOnConditionId` = $conditionId
-        WHERE `id` = $actionId
-    """.trimIndent()
-
-    private val deleteOldActionTable = """
-        DROP TABLE `action_table`
-    """.trimIndent()
-
-    private val renameTempActionTable = """
-        ALTER TABLE `temp_action_table` 
-        RENAME TO `action_table`
-    """.trimIndent()
-
-    // --- END Click on condition migration --- //
+    private fun SQLiteTable.updateClickOnConditionToId(actionId: Long, conditionId: Long?) = update(
+        extraClause = "WHERE `id` = $actionId",
+        contentValues = ContentValues().apply {
+            put(actionClickOnConditionIdColumn.name, conditionId)
+        },
+    )
 }
-
-private const val DETECTION_QUALITY_INCREASE = 600
-private const val DETECTION_QUALITY_NEW_MAX = 3216

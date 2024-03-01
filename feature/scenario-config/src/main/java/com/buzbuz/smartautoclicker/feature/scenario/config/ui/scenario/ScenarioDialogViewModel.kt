@@ -27,7 +27,6 @@ import com.buzbuz.smartautoclicker.core.ui.monitoring.MonitoredViewType
 import kotlinx.coroutines.FlowPreview
 
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
@@ -45,11 +44,15 @@ class ScenarioDialogViewModel(application: Application): AndroidViewModel(applic
      * Used to display the red badge if indicating if there is something missing.
      */
     val navItemsValidity: Flow<Map<Int, Boolean>> = combine(
-        editionRepository.editionState.eventsState.filterNotNull(),
         editionRepository.editionState.scenarioState.filterNotNull(),
-    ) { eventListState, scenarioState ->
+        editionRepository.editionState.editedImageEventsState.filterNotNull(),
+        editionRepository.editionState.editedTriggerEventsState.filterNotNull(),
+    ) { scenarioState, imageEventsState, triggerEventsState ->
         buildMap {
-            put(R.id.page_events, eventListState.canBeSaved)
+            put(R.id.page_image_events, imageEventsState.canBeSaved &&
+                    (!imageEventsState.value.isNullOrEmpty() || !triggerEventsState.value.isNullOrEmpty()))
+            put(R.id.page_trigger_events, triggerEventsState.canBeSaved &&
+                    (!imageEventsState.value.isNullOrEmpty() || !triggerEventsState.value.isNullOrEmpty()))
             put(R.id.page_config, scenarioState.canBeSaved)
             put(R.id.page_more, true)
         }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,8 +22,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.GridLayoutManager
 
-import com.buzbuz.smartautoclicker.core.ui.bindings.updateState
 import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
+import com.buzbuz.smartautoclicker.core.ui.bindings.updateState
 import com.buzbuz.smartautoclicker.core.ui.overlays.dialog.CopyDialog
 import com.buzbuz.smartautoclicker.feature.scenario.config.R
 
@@ -64,10 +64,7 @@ class ConditionCopyDialog(
         viewBinding.layoutLoadableList.list.apply {
             adapter = conditionAdapter
 
-            layoutManager = GridLayoutManager(
-                context,
-                2,
-            ).apply {
+            layoutManager = GridLayoutManager(context, 2).apply {
                 spanSizeLookup = conditionAdapter.spanSizeLookup
             }
         }

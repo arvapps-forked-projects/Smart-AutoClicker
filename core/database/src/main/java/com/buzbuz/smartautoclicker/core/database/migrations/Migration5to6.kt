@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,8 +16,16 @@
  */
 package com.buzbuz.smartautoclicker.core.database.migrations
 
+import android.content.ContentValues
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+
+import com.buzbuz.smartautoclicker.core.base.migrations.SQLiteColumn
+import com.buzbuz.smartautoclicker.core.base.migrations.SQLiteTable
+import com.buzbuz.smartautoclicker.core.base.migrations.forEachRow
+import com.buzbuz.smartautoclicker.core.base.migrations.getSQLiteTableReference
+import com.buzbuz.smartautoclicker.core.database.ACTION_TABLE
+import com.buzbuz.smartautoclicker.core.database.CONDITION_TABLE
 import com.buzbuz.smartautoclicker.core.database.entity.ActionType
 
 /**
@@ -29,61 +37,34 @@ import com.buzbuz.smartautoclicker.core.database.entity.ActionType
  */
 object Migration5to6 : Migration(5, 6) {
 
+    private val conditionShouldBeDetectedColumn =
+        SQLiteColumn.Boolean("shouldBeDetected", defaultValue = "1")
+
+    private val actionIdColumn = SQLiteColumn.PrimaryKey()
+    private val actionTypeColumn = SQLiteColumn.Text("type")
+    private val actionClickOnConditionColumn = SQLiteColumn.Int("clickOnCondition", isNotNull = false)
+
     override fun migrate(db: SupportSQLiteDatabase) {
         db.apply {
-            execSQL(addConditionShouldBeDetectedColumn)
-            execSQL(addActionClickOnConditionColumn)
-            updateAllActions()
-        }
-    }
+            getSQLiteTableReference(CONDITION_TABLE).alterTableAddColumn(conditionShouldBeDetectedColumn)
 
-    /**
-     * Update all actions with the new click on condition value.
-     * This value must be set for clicks only. As this feature wasn't implemented before this version, the default value
-     * must be 0, or false.
-     */
-    private fun SupportSQLiteDatabase.updateAllActions() {
-        query(getAllActions).use { cursor ->
-            if (cursor.count == 0) {
-                return
-            }
-            cursor.moveToFirst()
+            getSQLiteTableReference(ACTION_TABLE).apply {
+                alterTableAddColumn(actionClickOnConditionColumn)
 
-            val idColumnIndex = cursor.getColumnIndex("id")
-            val typeColumnIndex = cursor.getColumnIndex("type")
-            if (idColumnIndex< 0 || typeColumnIndex < 0) throw IllegalStateException("Can't find columns")
-
-            do {
-                val type = ActionType.valueOf(cursor.getString(typeColumnIndex))
-                if (type == ActionType.CLICK) {
-                    execSQL(updateClickOnCondition(cursor.getLong(idColumnIndex), 0))
+                forEachRow(null, actionIdColumn, actionTypeColumn) { actionId, actionType ->
+                    if (ActionType.valueOf(actionType) == ActionType.CLICK)
+                        updateClickOnCondition(actionId, 0)
                 }
-            } while (cursor.moveToNext())
+            }
         }
     }
-
-    /** Add the should be detected column to the condition table. */
-    private val addConditionShouldBeDetectedColumn = """
-        ALTER TABLE `condition_table` 
-        ADD COLUMN `shouldBeDetected` INTEGER DEFAULT 1 NOT NULL
-    """.trimIndent()
-
-    /** Add the click on condition to the action table. */
-    private val addActionClickOnConditionColumn = """
-        ALTER TABLE `action_table` 
-        ADD COLUMN `clickOnCondition` INTEGER
-    """.trimIndent()
 
     /** Update the click on condition value in the action table. */
-    private fun updateClickOnCondition(id: Long, clickOnCondition: Int) = """
-        UPDATE `action_table` 
-        SET `clickOnCondition` = $clickOnCondition
-        WHERE `id` = $id
-    """.trimIndent()
-
-    /** Get all actions on the table. */
-    private val getAllActions = """
-        SELECT `id`, `type` 
-        FROM `action_table`
-    """.trimIndent()
+    private fun SQLiteTable.updateClickOnCondition(id: Long, clickOnCondition: Int): Unit =
+        update(
+            extraClause = "WHERE `id` = $id",
+            contentValues = ContentValues().apply {
+                put(actionClickOnConditionColumn.name, clickOnCondition)
+            },
+        )
 }

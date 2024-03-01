@@ -26,10 +26,14 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 
 import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
+import com.buzbuz.smartautoclicker.core.domain.model.condition.ImageCondition
+import com.buzbuz.smartautoclicker.core.domain.model.condition.TriggerCondition
 import com.buzbuz.smartautoclicker.feature.scenario.config.R
-import com.buzbuz.smartautoclicker.feature.scenario.config.databinding.ItemConditionBinding
-import com.buzbuz.smartautoclicker.feature.scenario.config.databinding.ItemCopyHeaderBinding
-import com.buzbuz.smartautoclicker.feature.scenario.config.ui.bindings.bind
+import com.buzbuz.smartautoclicker.core.ui.databinding.ItemListHeaderBinding
+import com.buzbuz.smartautoclicker.feature.scenario.config.databinding.ItemImageConditionBinding
+import com.buzbuz.smartautoclicker.feature.scenario.config.databinding.ItemTriggerConditionBinding
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.common.bindings.bind
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.event.conditions.TriggerConditionAdapter
 
 import kotlinx.coroutines.Job
 
@@ -40,30 +44,35 @@ import kotlinx.coroutines.Job
  */
 class ConditionCopyAdapter(
     private val conditionClickedListener: (Condition) -> Unit,
-    private val bitmapProvider: (Condition, onBitmapLoaded: (Bitmap?) -> Unit) -> Job?,
+    private val bitmapProvider: (ImageCondition, onBitmapLoaded: (Bitmap?) -> Unit) -> Job?,
 ): ListAdapter<ConditionCopyModel.ConditionCopyItem, RecyclerView.ViewHolder>(ConditionDiffUtilCallback) {
 
     val spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
         override fun getSpanSize(position: Int): Int =
             when (getItem(position)) {
                 is ConditionCopyModel.ConditionCopyItem.HeaderItem -> 2
-                is ConditionCopyModel.ConditionCopyItem.ConditionItem -> 1
+                is ConditionCopyModel.ConditionCopyItem.ConditionItem.Trigger -> 2
+                is ConditionCopyModel.ConditionCopyItem.ConditionItem.Image -> 1
             }
     }
 
     override fun getItemViewType(position: Int): Int =
         when(getItem(position)) {
-            is ConditionCopyModel.ConditionCopyItem.HeaderItem -> R.layout.item_copy_header
-            is ConditionCopyModel.ConditionCopyItem.ConditionItem -> R.layout.item_condition
+            is ConditionCopyModel.ConditionCopyItem.HeaderItem -> R.layout.item_list_header
+            is ConditionCopyModel.ConditionCopyItem.ConditionItem.Image -> R.layout.item_image_condition
+            is ConditionCopyModel.ConditionCopyItem.ConditionItem.Trigger -> R.layout.item_trigger_condition
         }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder =
         when (viewType) {
-            R.layout.item_copy_header -> HeaderViewHolder(
-                ItemCopyHeaderBinding.inflate(LayoutInflater.from(parent.context), parent, false))
-            R.layout.item_condition -> ConditionViewHolder(
-                ItemConditionBinding.inflate(LayoutInflater.from(parent.context), parent, false),
+            R.layout.item_list_header -> HeaderViewHolder(
+                ItemListHeaderBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+            R.layout.item_image_condition -> ImageConditionViewHolder(
+                ItemImageConditionBinding.inflate(LayoutInflater.from(parent.context), parent, false),
                 bitmapProvider
+            )
+            R.layout.item_trigger_condition -> TriggerConditionViewHolder(
+                ItemTriggerConditionBinding.inflate(LayoutInflater.from(parent.context), parent, false),
             )
             else -> throw IllegalArgumentException("Unsupported view type !")
         }
@@ -71,15 +80,19 @@ class ConditionCopyAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (holder) {
             is HeaderViewHolder -> holder.onBind(getItem(position) as ConditionCopyModel.ConditionCopyItem.HeaderItem)
-            is ConditionViewHolder -> holder.onBind(
-                getItem(position) as ConditionCopyModel.ConditionCopyItem.ConditionItem,
+            is ImageConditionViewHolder -> holder.onBind(
+                getItem(position) as ConditionCopyModel.ConditionCopyItem.ConditionItem.Image,
+                conditionClickedListener,
+            )
+            is TriggerConditionViewHolder -> holder.onBind(
+                getItem(position) as ConditionCopyModel.ConditionCopyItem.ConditionItem.Trigger,
                 conditionClickedListener,
             )
         }
     }
 
     override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
-        if (holder is ConditionViewHolder) holder.onUnbind()
+        if (holder is ImageConditionViewHolder) holder.onUnbind()
         super.onViewRecycled(holder)
     }
 }
@@ -108,7 +121,7 @@ object ConditionDiffUtilCallback: DiffUtil.ItemCallback<ConditionCopyModel.Condi
  * @param viewBinding the view binding for this header.
  */
 class HeaderViewHolder(
-    private val viewBinding: ItemCopyHeaderBinding,
+    private val viewBinding: ItemListHeaderBinding,
 ) : RecyclerView.ViewHolder(viewBinding.root) {
 
     fun onBind(header: ConditionCopyModel.ConditionCopyItem.HeaderItem) {
@@ -121,9 +134,9 @@ class HeaderViewHolder(
  * @param viewBinding the view binding for this item.
  * @param bitmapProvider provides the conditions bitmap.
  */
-class ConditionViewHolder(
-    private val viewBinding: ItemConditionBinding,
-    private val bitmapProvider: (Condition, onBitmapLoaded: (Bitmap?) -> Unit) -> Job?,
+private class ImageConditionViewHolder(
+    private val viewBinding: ItemImageConditionBinding,
+    private val bitmapProvider: (ImageCondition, onBitmapLoaded: (Bitmap?) -> Unit) -> Job?,
 ) : RecyclerView.ViewHolder(viewBinding.root) {
 
     /** Job for the loading of the condition bitmap. Null until bound. */
@@ -136,8 +149,8 @@ class ConditionViewHolder(
      * @param conditionClickedListener listener notified upon user click on this item.
      */
     fun onBind(
-        item: ConditionCopyModel.ConditionCopyItem.ConditionItem,
-        conditionClickedListener: (Condition) -> Unit,
+        item: ConditionCopyModel.ConditionCopyItem.ConditionItem.Image,
+        conditionClickedListener: (ImageCondition) -> Unit,
     ) {
         bitmapLoadingJob?.cancel()
         bitmapLoadingJob = viewBinding.bind(
@@ -151,5 +164,27 @@ class ConditionViewHolder(
     fun onUnbind() {
         bitmapLoadingJob?.cancel()
         bitmapLoadingJob = null
+    }
+}
+
+/**
+ * View holder displaying a condition in the [TriggerConditionAdapter].
+ * @param viewBinding the view binding for this item.
+ */
+private class TriggerConditionViewHolder(
+    private val viewBinding: ItemTriggerConditionBinding,
+) : RecyclerView.ViewHolder(viewBinding.root) {
+
+    /**
+     * Bind this view holder as a condition item.
+     *
+     * @param item the condition to be represented by this item.
+     * @param conditionClickedListener listener notified upon user click on this item.
+     */
+    fun onBind(
+        item: ConditionCopyModel.ConditionCopyItem.ConditionItem.Trigger,
+        conditionClickedListener: (TriggerCondition) -> Unit
+    ) {
+        viewBinding.bind(item.condition, conditionClickedListener)
     }
 }

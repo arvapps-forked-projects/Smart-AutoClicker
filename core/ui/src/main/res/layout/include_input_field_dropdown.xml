@@ -26,13 +26,14 @@
         style="@style/AppTheme.Widget.InputDropdown"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        tools:helperText="Very long helper in order to take two lines just to check how it renders">
+        tools:helperText="Helper">
 
         <com.google.android.material.textfield.MaterialAutoCompleteTextView
             android:id="@+id/text_field"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="none"
+            android:lines="1"
             tools:text="Option"/>
 
     </com.google.android.material.textfield.TextInputLayout>

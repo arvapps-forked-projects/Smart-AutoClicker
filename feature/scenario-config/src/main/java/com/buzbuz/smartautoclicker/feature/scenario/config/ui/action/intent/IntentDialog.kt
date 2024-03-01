@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,21 +31,19 @@ import com.buzbuz.smartautoclicker.core.ui.overlays.dialog.NavBarDialogContent
 import com.buzbuz.smartautoclicker.core.ui.overlays.dialog.NavBarDialog
 import com.buzbuz.smartautoclicker.core.ui.overlays.viewModels
 import com.buzbuz.smartautoclicker.feature.scenario.config.R
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.action.OnActionConfigCompleteListener
 
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.navigation.NavigationBarView
 
 import kotlinx.coroutines.launch
 
 class IntentDialog(
-    private val onConfirmClicked: () -> Unit,
-    private val onDeleteClicked: () -> Unit,
-    private val onDismissClicked: () -> Unit,
+    private val listener: OnActionConfigCompleteListener,
 ) : NavBarDialog(R.style.ScenarioConfigTheme) {
 
     /** The view model for this dialog. */
     private val viewModel: IntentViewModel by viewModels()
-
-    override val navigationMenuId: Int = R.menu.menu_intent_config
 
     override fun onCreateView(): ViewGroup {
         return super.onCreateView().also {
@@ -77,6 +75,10 @@ class IntentDialog(
         }
     }
 
+    override fun inflateMenu(navBarView: NavigationBarView) {
+        navBarView.inflateMenu(R.menu.menu_intent_config)
+    }
+
     override fun onCreateContent(navItemId: Int): NavBarDialogContent {
         return when (navItemId) {
             R.id.page_simple -> SimpleIntentContent(context.applicationContext)
@@ -96,10 +98,10 @@ class IntentDialog(
         when (buttonType) {
             DialogNavigationButton.SAVE -> {
                 viewModel.saveLastConfig()
-                onConfirmClicked()
+                listener.onConfirmClicked()
             }
-            DialogNavigationButton.DELETE -> onDeleteClicked()
-            DialogNavigationButton.DISMISS -> onDismissClicked()
+            DialogNavigationButton.DELETE -> listener.onDeleteClicked()
+            DialogNavigationButton.DISMISS -> listener.onDismissClicked()
             else -> {}
         }
 

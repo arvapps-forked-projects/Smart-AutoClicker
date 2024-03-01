@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,8 @@ import android.view.ViewGroup
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.buzbuz.smartautoclicker.core.ui.bindings.dropdown.setItems
+import com.buzbuz.smartautoclicker.core.ui.bindings.dropdown.setSelectedItem
 
 import com.buzbuz.smartautoclicker.core.ui.bindings.setButtonEnabledState
 import com.buzbuz.smartautoclicker.core.ui.bindings.setError
@@ -37,15 +39,15 @@ import com.buzbuz.smartautoclicker.core.ui.overlays.viewModels
 import com.buzbuz.smartautoclicker.core.ui.utils.MinMaxInputFilter
 import com.buzbuz.smartautoclicker.feature.scenario.config.R
 import com.buzbuz.smartautoclicker.feature.scenario.config.databinding.DialogConfigActionPauseBinding
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.action.OnActionConfigCompleteListener
+import com.buzbuz.smartautoclicker.feature.scenario.config.ui.common.timeunit.timeUnitDropdownItems
 
 import com.google.android.material.bottomsheet.BottomSheetDialog
 
 import kotlinx.coroutines.launch
 
 class PauseDialog(
-    private val onConfirmClicked: () -> Unit,
-    private val onDeleteClicked: () -> Unit,
-    private val onDismissClicked: () -> Unit,
+    private val listener: OnActionConfigCompleteListener,
 ) : OverlayDialog(R.style.ScenarioConfigTheme) {
 
     /** The view model for this dialog. */
@@ -61,7 +63,7 @@ class PauseDialog(
 
                 buttonDismiss.setOnClickListener {
                     debounceUserInteraction {
-                        onDismissClicked()
+                        listener.onDismissClicked()
                         back()
                     }
                 }
@@ -92,6 +94,12 @@ class PauseDialog(
                 }
             }
             hideSoftInputOnFocusLoss(editPauseDurationLayout.textField)
+
+            timeUnitField.setItems(
+                label = context.getString(R.string.dropdown_label_time_unit),
+                items = timeUnitDropdownItems,
+                onItemSelected = viewModel::setTimeUnit,
+            )
         }
 
         return viewBinding.root
@@ -109,6 +117,7 @@ class PauseDialog(
                 launch { viewModel.nameError.collect(viewBinding.editNameLayout::setError)}
                 launch { viewModel.pauseDuration.collect(::updatePauseDuration) }
                 launch { viewModel.pauseDurationError.collect(viewBinding.editPauseDurationLayout::setError)}
+                launch { viewModel.selectedUnitItem.collect(viewBinding.timeUnitField::setSelectedItem) }
                 launch { viewModel.isValidAction.collect(::updateSaveButton) }
             }
         }
@@ -117,14 +126,14 @@ class PauseDialog(
     private fun onSaveButtonClicked() {
         debounceUserInteraction {
             viewModel.saveLastConfig()
-            onConfirmClicked()
+            listener.onConfirmClicked()
             back()
         }
     }
 
     private fun onDeleteButtonClicked() {
         debounceUserInteraction {
-            onDeleteClicked()
+            listener.onDeleteClicked()
             back()
         }
     }

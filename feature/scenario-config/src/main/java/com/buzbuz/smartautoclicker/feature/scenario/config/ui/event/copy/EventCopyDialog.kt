@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,17 +17,18 @@
 package com.buzbuz.smartautoclicker.feature.scenario.config.ui.event.copy
 
 import android.content.DialogInterface
-
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.DividerItemDecoration
+import com.buzbuz.smartautoclicker.core.display.DisplayMetrics
 
 import com.buzbuz.smartautoclicker.core.ui.bindings.updateState
-import com.buzbuz.smartautoclicker.core.domain.model.event.Event
 import com.buzbuz.smartautoclicker.core.ui.overlays.dialog.CopyDialog
-import com.buzbuz.smartautoclicker.core.display.DisplayMetrics
+import com.buzbuz.smartautoclicker.core.domain.model.event.Event
+import com.buzbuz.smartautoclicker.core.domain.model.event.ImageEvent
+import com.buzbuz.smartautoclicker.core.ui.bindings.getDividerWithoutHeader
 import com.buzbuz.smartautoclicker.feature.scenario.config.R
 
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -36,6 +37,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.launch
 
 class EventCopyDialog(
+    private val requestTriggerEvents: Boolean,
     private val onEventSelected: (Event) -> Unit,
 ) : CopyDialog(R.style.ScenarioConfigTheme) {
 
@@ -49,10 +51,11 @@ class EventCopyDialog(
     override val emptyRes: Int = R.string.message_empty_copy
 
     override fun onDialogCreated(dialog: BottomSheetDialog) {
+        viewModel.setCopyListType(requestTriggerEvents)
         eventCopyAdapter = EventCopyAdapter(::onEventClicked)
 
         viewBinding.layoutLoadableList.list.apply {
-            addItemDecoration(DividerItemDecoration(context, DividerItemDecoration.VERTICAL))
+            addItemDecoration(getDividerWithoutHeader(context))
             adapter = eventCopyAdapter
         }
 
@@ -77,6 +80,11 @@ class EventCopyDialog(
         }
     }
 
+    private fun updateEventList(newItems: List<EventCopyModel.EventCopyItem>?) {
+        viewBinding.layoutLoadableList.updateState(newItems)
+        eventCopyAdapter.submitList(newItems)
+    }
+
     /** Show the copy event with toggle event action warning. */
     private fun showToggleEventCopyWarning(event: Event) {
         MaterialAlertDialogBuilder(context)
@@ -96,10 +104,5 @@ class EventCopyDialog(
     private fun notifySelectionAndDestroy(event: Event) {
         back()
         onEventSelected(event)
-    }
-
-    private fun updateEventList(newItems: List<EventCopyModel.EventCopyItem>?) {
-        viewBinding.layoutLoadableList.updateState(newItems)
-        eventCopyAdapter.submitList(newItems)
     }
 }

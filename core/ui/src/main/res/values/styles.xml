@@ -22,8 +22,8 @@
     <!-- Style for the dialog top bar root layout. -->
     <style name="AppTheme.Dialog.TopBar">
         <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">65dp</item>
-        <item name="android:background">?attr/colorSurface</item>
+        <item name="android:layout_height">@dimen/dialog_top_bar_height</item>
+        <item name="android:background">?attr/colorSurfaceContainerLowest</item>
         <item name="android:elevation">3dp</item>
     </style>
     <!-- Style for the dialog top bar title. -->
@@ -100,6 +100,25 @@
         <item name="android:minWidth">0dp</item>
         <item name="android:minHeight">0dp</item>
     </style>
+    <!-- Style for an outlined checkable icon button -->
+    <style name="AppTheme.Widget.CheckableButton" parent="Widget.Material3.Button.IconButton.Outlined">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="backgroundTint">@color/selector_button_checkable_background</item>
+        <item name="iconTint">@color/selector_button_checkable_tint</item>
+    </style>
+    <!-- Style for segmented buttons with only icons -->
+    <style name="AppTheme.Widget.SegmentedIconButtons" parent="@style/Widget.Material3.Button.OutlinedButton">
+        <item name="iconPadding">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingLeft">12dp</item>
+        <item name="android:paddingRight">12dp</item>
+        <item name="android:minWidth">24dp</item>
+        <item name="android:minHeight">24dp</item>
+        <item name="backgroundTint">@color/selector_button_checkable_background</item>
+        <item name="iconTint">@color/selector_button_checkable_tint</item>
+    </style>
     <!-- Style for the main floating action button. -->
     <style name="AppTheme.Widget.Fab" parent="@style/Widget.Material3.FloatingActionButton.Primary">
         <item name="android:layout_width">wrap_content</item>
@@ -118,6 +137,14 @@
     <!-- Style for the collapsible search view. -->
     <style name="AppTheme.Widget.SearchView" parent="Widget.AppCompat.AutoCompleteTextView">
         <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <!-- Style for the bottom sheets dialogs search view. -->
+    <style name="AppTheme.Widget.BottomSheetDialog" parent="@style/ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/AppTheme.Widget.BottomSheet</item>
+    </style>
+    <!-- Style for the bottom sheets dialogs search view. -->
+    <style name="AppTheme.Widget.BottomSheet" parent="@style/Widget.Material3.BottomSheet.Modal">
+        <item name="backgroundTint">?android:attr/colorBackground</item>
     </style>
 
     <!-- Base overlays theme. -->
@@ -210,6 +237,14 @@
     <!-- Text appearance for the secondary empty lists text. -->
     <style name="AppTheme.TextAppearance.EmptyTextSecondary" parent="@style/TextAppearance.Material3.BodyMedium">
         <item name="android:textStyle">italic</item>
+    </style>
+    <!-- Text appearance for the overlays text. -->
+    <style name="AppTheme.TextAppearance.OverlayBig" parent="@android:style/TextAppearance.Widget.TextView">
+        <item name="android:paddingStart">@dimen/margin_horizontal_mini</item>
+        <item name="android:paddingEnd">@dimen/margin_horizontal_mini</item>
+        <item name="android:fontFamily">sans-serif-medium"</item>
+        <item name="android:textSize">@dimen/text_size_overlay_big</item>
+        <item name="android:textColor">@color/textTitle</item>
     </style>
 
 </resources>

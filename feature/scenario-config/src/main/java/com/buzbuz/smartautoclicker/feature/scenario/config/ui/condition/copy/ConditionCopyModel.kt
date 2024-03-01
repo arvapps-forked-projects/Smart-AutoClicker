@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,21 +21,19 @@ import android.graphics.Bitmap
 
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
 
-import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
+import com.buzbuz.smartautoclicker.core.domain.model.condition.ImageCondition
 import com.buzbuz.smartautoclicker.core.domain.Repository
+import com.buzbuz.smartautoclicker.core.domain.model.condition.Condition
+import com.buzbuz.smartautoclicker.core.domain.model.condition.TriggerCondition
 import com.buzbuz.smartautoclicker.feature.scenario.config.R
 import com.buzbuz.smartautoclicker.feature.scenario.config.domain.EditionRepository
+import com.buzbuz.smartautoclicker.feature.scenario.config.utils.getImageConditionBitmap
 
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * View model for the [ConditionCopyDialog].
@@ -51,12 +49,39 @@ class ConditionCopyModel(application: Application) : AndroidViewModel(applicatio
     /** The currently searched action name. Null if no is. */
     private val searchQuery = MutableStateFlow<String?>(null)
 
-    /** List of displayed condition items. */
-    val conditionList: Flow<List<ConditionCopyItem>?> =
-        combine(repository.getAllConditions(), editionRepository.editionState.editedEventConditionsState, searchQuery) { dbCond, eventCond, query ->
-            val editedConditions = eventCond.value ?: return@combine null
-            if (query.isNullOrEmpty()) getAllItems(dbCond, editedConditions) else dbCond.toCopyItemsFromSearch(query)
+    private val allCopyItems: Flow<List<ConditionCopyItem>> =
+        combine(
+            editionRepository.editionState.editedEventState,
+            editionRepository.editionState.conditionsForCopy,
+        ) { editedEventState, conditions ->
+
+            val editedEvent = editedEventState.value ?: return@combine emptyList()
+            val editedConditions = mutableListOf<Condition>()
+            val otherConditions = mutableListOf<Condition>()
+            conditions.forEach { condition ->
+                if (editedEvent.id == condition.eventId) editedConditions.add(condition)
+                else otherConditions.add(condition)
+            }
+
+            buildList {
+                if (editedConditions.isNotEmpty()) {
+                    add(ConditionCopyItem.HeaderItem(R.string.list_header_copy_conditions_this))
+                    addAll(editedConditions.toCopyItems().distinctByUiDisplay().sortedBy { it.condition.name })
+                }
+                if (otherConditions.isNotEmpty()) {
+                    add(ConditionCopyItem.HeaderItem(R.string.list_header_copy_conditions_all))
+                    addAll(otherConditions.toCopyItems().distinctByUiDisplay().sortedBy { it.condition.name })
+                }
+            }
         }
+
+    /** List of displayed condition items. */
+    val conditionList: Flow<List<ConditionCopyItem>?> = allCopyItems.combine(searchQuery) { allItems, query ->
+        if (query.isNullOrEmpty()) allItems
+        else allItems
+            .filterIsInstance<ConditionCopyItem.ConditionItem>()
+            .filter { item -> item.condition.name.contains(query, true) }
+    }
 
     fun updateSearchQuery(query: String?) {
         searchQuery.value = query
@@ -69,81 +94,40 @@ class ConditionCopyModel(application: Application) : AndroidViewModel(applicatio
      * @param condition the condition to load the bitmap of.
      * @param onBitmapLoaded the callback notified upon completion.
      */
-    fun getConditionBitmap(condition: Condition, onBitmapLoaded: (Bitmap?) -> Unit): Job? {
-        if (condition.bitmap != null) {
-            onBitmapLoaded.invoke(condition.bitmap)
-            return null
+    fun getConditionBitmap(condition: ImageCondition, onBitmapLoaded: (Bitmap?) -> Unit): Job =
+        getImageConditionBitmap(repository, condition, onBitmapLoaded)
+
+    /** */
+    private fun List<Condition>.toCopyItems() = map { condition ->
+        when (condition) {
+            is ImageCondition -> ConditionCopyItem.ConditionItem.Image(condition)
+            is TriggerCondition -> ConditionCopyItem.ConditionItem.Trigger(condition)
         }
+    }
 
-        if (condition.path != null) {
-            return viewModelScope.launch(Dispatchers.IO) {
-                val bitmap = repository.getBitmap(condition.path!!, condition.area.width(), condition.area.height())
+    private fun List<ConditionCopyItem.ConditionItem>.distinctByUiDisplay() =
+        distinctBy { item ->
+            when (item) {
+                is ConditionCopyItem.ConditionItem.Image ->
+                    item.condition.hashCodeNoIds()
 
-                if (isActive) {
-                    withContext(Dispatchers.Main) {
-                        onBitmapLoaded.invoke(bitmap)
+                is ConditionCopyItem.ConditionItem.Trigger ->
+                    when (item.condition) {
+                        is TriggerCondition.OnBroadcastReceived -> item.condition.name.hashCode() +
+                                item.condition.intentAction.hashCode()
+
+                        is TriggerCondition.OnCounterCountReached -> item.condition.name.hashCode() +
+                                item.condition.counterName.hashCode() +
+                                item.condition.counterValue +
+                                item.condition.comparisonOperation.hashCode()
+
+                        is TriggerCondition.OnTimerReached -> item.condition.name.hashCode() +
+                                item.condition.durationMs
+
+                        else -> 0
                     }
-                }
             }
         }
-
-        onBitmapLoaded.invoke(null)
-        return null
-    }
-
-    /**
-     * Get all items with the headers.
-     * @param dbConditions all conditions in the database.
-     * @param eventConditions all conditions in the current event.
-     * @return the complete list of condition items.
-     */
-    private fun getAllItems(dbConditions: List<Condition>, eventConditions: List<Condition>): List<ConditionCopyItem> {
-        val allItems = mutableListOf<ConditionCopyItem>()
-
-        // First, add the actions from the current event
-        val eventItems = eventConditions.toCopyItemsFromCurrentEvent()
-        if (eventItems.isNotEmpty()) {
-            allItems.add(ConditionCopyItem.HeaderItem(R.string.list_header_copy_conditions_this))
-            allItems.addAll(eventItems)
-        }
-
-        // Then, add all other conditions. Remove the one already in this event.
-        val conditions = dbConditions.toCopyItemsFromOtherEvents(eventItems)
-        if (conditions.isNotEmpty()) {
-            allItems.add(ConditionCopyItem.HeaderItem(R.string.list_header_copy_conditions_all))
-            allItems.addAll(conditions)
-        }
-
-        return allItems
-    }
-
-    /**
-     * Get the result of the search query.
-     * @param query the current search query.
-     */
-    private fun List<Condition>.toCopyItemsFromSearch(query: String) =
-        filter { condition -> condition.name.contains(query, true) }
-            .map { ConditionCopyItem.ConditionItem(it) }
-            .distinct()
-
-    /** */
-    private fun List<Condition>.toCopyItemsFromCurrentEvent() =
-        sortedBy { it.name }
-            .map { ConditionCopyItem.ConditionItem(it) }
-            .distinct()
-
-    /** */
-    private fun List<Condition>.toCopyItemsFromOtherEvents(eventItems: List<ConditionCopyItem.ConditionItem>) =
-        map { ConditionCopyItem.ConditionItem(it) }
-            .toMutableList()
-            .apply {
-                removeIf { allItem ->
-                    eventItems.find {
-                        allItem.condition.id == it.condition.id || allItem == it
-                    } != null
-                }
-            }
-            .distinct()
 
     /** Types of items in the condition copy list. */
     sealed class ConditionCopyItem {
@@ -154,10 +138,22 @@ class ConditionCopyModel(application: Application) : AndroidViewModel(applicatio
          */
         data class HeaderItem(@StringRes val title: Int) : ConditionCopyItem()
 
-        /**
-         * Condition item.
-         * @param condition the details for the condition.
-         */
-        data class ConditionItem (val condition: Condition) : ConditionCopyItem()
+        sealed class ConditionItem : ConditionCopyItem() {
+
+            abstract val condition: Condition
+
+            /**
+             * Image Condition item.
+             * @param condition the details for the condition.
+             */
+            data class Image(override val condition: ImageCondition) : ConditionItem()
+
+            /**
+             * Trigger Condition item.
+             * @param condition the details for the condition.
+             */
+            data class Trigger(override val condition: TriggerCondition) : ConditionItem()
+
+        }
     }
 }
