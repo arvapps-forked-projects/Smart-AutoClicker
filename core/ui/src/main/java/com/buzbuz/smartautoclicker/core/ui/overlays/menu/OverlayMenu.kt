@@ -38,8 +38,10 @@ import androidx.core.view.children
 import androidx.core.view.forEach
 import androidx.lifecycle.Lifecycle
 
+import com.buzbuz.smartautoclicker.core.base.extensions.WindowManagerCompat
+import com.buzbuz.smartautoclicker.core.base.extensions.disableMoveAnimations
+import com.buzbuz.smartautoclicker.core.base.extensions.safeAddView
 import com.buzbuz.smartautoclicker.core.ui.overlays.BaseOverlay
-import com.buzbuz.smartautoclicker.core.display.DisplayMetrics
 import com.buzbuz.smartautoclicker.core.ui.R
 import com.buzbuz.smartautoclicker.core.ui.overlays.menu.common.OverlayMenuAnimations
 import com.buzbuz.smartautoclicker.core.ui.overlays.menu.common.OverlayMenuMoveTouchEventHandler
@@ -80,13 +82,15 @@ abstract class OverlayMenu(
     private val baseLayoutParams: WindowManager.LayoutParams = WindowManager.LayoutParams(
         WindowManager.LayoutParams.WRAP_CONTENT,
         WindowManager.LayoutParams.WRAP_CONTENT,
-        DisplayMetrics.TYPE_COMPAT_OVERLAY,
+        WindowManagerCompat.TYPE_COMPAT_OVERLAY,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
         PixelFormat.TRANSLUCENT,
-    )
+    ).apply {
+        disableMoveAnimations()
+    }
 
     /** The layout parameters of the menu layout. */
     private val menuLayoutParams: WindowManager.LayoutParams =
@@ -207,12 +211,18 @@ abstract class OverlayMenu(
         // Add the overlay, if any. It needs to be below the menu or user won't be able to click on the menu.
         screenOverlayView?.let {
             if (animateOverlayView()) it.visibility = View.GONE
-            windowManager.addView(it, overlayLayoutParams)
+            if (!windowManager.safeAddView(it, overlayLayoutParams)) {
+                finish()
+                return
+            }
         }
 
         // Add the menu view to the window manager, but hidden
         if (animateOverlayView()) menuBackground.visibility = View.GONE
-        windowManager.addView(menuLayout, menuLayoutParams)
+        if (!windowManager.safeAddView(menuLayout, menuLayoutParams)) {
+            finish()
+            return
+        }
     }
 
     private fun setupButtons(buttonsContainer: ViewGroup) {
@@ -369,8 +379,17 @@ abstract class OverlayMenu(
         windowManager.apply {
             removeView(oldOverlayView)
             removeView(menuLayout)
-            addView(screenOverlayView, overlayLayoutParams)
-            addView(menuLayout, menuLayoutParams)
+            screenOverlayView?.let { overlayView ->
+                if (!safeAddView(overlayView, overlayLayoutParams)) {
+                    finish()
+                    return
+                }
+            }
+
+            if (!safeAddView(menuLayout, menuLayoutParams)) {
+                finish()
+                return
+            }
         }
 
         lifecycleRegistry.currentState = previousState
