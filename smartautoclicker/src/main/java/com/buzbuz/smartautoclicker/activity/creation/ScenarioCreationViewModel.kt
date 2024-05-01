@@ -16,21 +16,23 @@
  */
 package com.buzbuz.smartautoclicker.activity.creation
 
-import android.app.Application
 import android.content.Context
 
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 
 import com.buzbuz.smartautoclicker.R
 import com.buzbuz.smartautoclicker.core.base.identifier.DATABASE_ID_INSERTION
 import com.buzbuz.smartautoclicker.core.base.identifier.Identifier
-import com.buzbuz.smartautoclicker.core.domain.Repository
+import com.buzbuz.smartautoclicker.core.domain.IRepository
 import com.buzbuz.smartautoclicker.core.domain.model.scenario.Scenario
-import com.buzbuz.smartautoclicker.core.dumb.domain.DumbRepository
+import com.buzbuz.smartautoclicker.core.dumb.domain.IDumbRepository
 import com.buzbuz.smartautoclicker.core.dumb.domain.model.DumbScenario
-import com.buzbuz.smartautoclicker.feature.billing.IBillingRepository
-import com.buzbuz.smartautoclicker.feature.billing.ProModeAdvantage
+import com.buzbuz.smartautoclicker.feature.revenue.IRevenueRepository
+import com.buzbuz.smartautoclicker.feature.revenue.UserBillingState
+
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -39,22 +41,18 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class ScenarioCreationViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val dumbRepository = DumbRepository.getRepository(application)
-    private val repository = Repository.getRepository(application)
-
-    private val billingRepository = IBillingRepository.getRepository(application)
-
-    /** Tells if the limitation in smart scenario count have been reached. */
-    private val isSmartScenarioLimitReached: Flow<Boolean> = billingRepository.isProModePurchased
-        .combine(repository.scenarios) { isProModePurchased, scenarios ->
-            !isProModePurchased && scenarios.size >= ProModeAdvantage.Limitation.SMART_SCENARIO_COUNT_LIMIT.limit
-        }
+@HiltViewModel
+class ScenarioCreationViewModel @Inject constructor(
+    @ApplicationContext context: Context,
+    revenueRepository: IRevenueRepository,
+    private val smartRepository: IRepository,
+    private val dumbRepository: IDumbRepository,
+) : ViewModel() {
 
     private val _name: MutableStateFlow<String?> =
-        MutableStateFlow(application.getString(R.string.default_scenario_name))
+        MutableStateFlow(context.getString(R.string.default_scenario_name))
     val name: Flow<String> = _name
         .map { it ?: "" }
         .take(1)
@@ -64,22 +62,12 @@ class ScenarioCreationViewModel(application: Application) : AndroidViewModel(app
     private val _selectedType: MutableStateFlow<ScenarioTypeSelection> =
         MutableStateFlow(ScenarioTypeSelection.SMART)
     val scenarioTypeSelectionState: Flow<ScenarioTypeSelectionState> =
-        combine(_selectedType, billingRepository.isProModePurchased, isSmartScenarioLimitReached) { selectedType, isProMode, limitIsReached ->
-            when {
-                limitIsReached -> ScenarioTypeSelectionState(
-                    dumbItem = ScenarioTypeItem.Dumb,
-                    smartItem = ScenarioTypeItem.Smart(isProMode),
-                    smartItemEnabled = false,
-                    selectedItem = ScenarioTypeSelection.DUMB,
-                )
-
-                else -> ScenarioTypeSelectionState(
-                    dumbItem = ScenarioTypeItem.Dumb,
-                    smartItem = ScenarioTypeItem.Smart(isProMode),
-                    smartItemEnabled = true,
-                    selectedItem = selectedType,
-                )
-            }
+        combine(_selectedType, revenueRepository.userBillingState) { selectedType, billingState ->
+            ScenarioTypeSelectionState(
+                dumbItem = ScenarioTypeItem.Dumb,
+                smartItem = ScenarioTypeItem.Smart(isProModeEnabled = billingState == UserBillingState.PURCHASED),
+                selectedItem = selectedType,
+            )
         }
 
     private val canBeCreated: Flow<Boolean> = _name.map { name -> !name.isNullOrEmpty() }
@@ -111,13 +99,6 @@ class ScenarioCreationViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
-    fun onScenarioCountReachedAddCopyClicked(context: Context) {
-        billingRepository.startBillingActivity(
-            context,
-            ProModeAdvantage.Limitation.SMART_SCENARIO_COUNT_LIMIT,
-        )
-    }
-
     private suspend fun createDumbScenario() {
         dumbRepository.addDumbScenario(
             DumbScenario(
@@ -134,7 +115,7 @@ class ScenarioCreationViewModel(application: Application) : AndroidViewModel(app
     }
 
     private suspend fun createSmartScenario(context: Context) {
-        repository.addScenario(
+        smartRepository.addScenario(
             Scenario(
                 id = Identifier(databaseId = DATABASE_ID_INSERTION, tempId = 0L),
                 name = _name.value!!,
@@ -152,8 +133,8 @@ data class ScenarioTypeSelectionState(
     val dumbItem: ScenarioTypeItem.Dumb,
     val smartItem: ScenarioTypeItem.Smart,
     val selectedItem: ScenarioTypeSelection,
-    val smartItemEnabled: Boolean,
 )
+
 sealed class ScenarioTypeItem(val titleRes: Int, val iconRes: Int, val descriptionText: Int) {
 
     data object Dumb: ScenarioTypeItem(

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,6 +42,7 @@ import com.buzbuz.smartautoclicker.feature.backup.ui.BackupDialogFragment
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.shape.MaterialShapeDrawable
+import dagger.hilt.android.AndroidEntryPoint
 
 import kotlinx.coroutines.launch
 
@@ -49,6 +50,7 @@ import kotlinx.coroutines.launch
  * Fragment displaying the list of click scenario and the creation dialog.
  * If the list is empty, it will hide the list and displays the empty list view.
  */
+@AndroidEntryPoint
 class ScenarioListFragment : Fragment() {
 
     interface Listener {
@@ -93,9 +95,7 @@ class ScenarioListFragment : Fragment() {
             add.setOnClickListener { onCreateClicked() }
 
             appBarLayout.statusBarForeground = MaterialShapeDrawable.createWithElevationOverlay(context)
-            topAppBar.apply {
-                setOnMenuItemClickListener { onMenuItemSelected(it) }
-            }
+            topAppBar.setOnMenuItemClickListener { onMenuItemSelected(it) }
         }
 
         lifecycleScope.launch {
@@ -110,7 +110,6 @@ class ScenarioListFragment : Fragment() {
 
         when (item.itemId) {
             R.id.action_export -> when {
-                !uiState.isProModePurchased -> scenarioListViewModel.onExportClickedWithoutProMode(requireContext())
                 uiState.type == ScenarioListUiState.Type.EXPORT -> showBackupDialog(
                     isImport = false,
                     smartScenariosToBackup = scenarioListViewModel.getSmartScenariosSelectedForBackup(),
@@ -119,14 +118,12 @@ class ScenarioListFragment : Fragment() {
                 else -> scenarioListViewModel.setUiState(ScenarioListUiState.Type.EXPORT)
             }
 
-            R.id.action_import -> when {
-                !uiState.isProModePurchased -> scenarioListViewModel.onImportClickedWithoutProMode(requireContext())
-                else -> showBackupDialog(true)
-            }
-
+            R.id.action_import -> showBackupDialog(true)
             R.id.action_cancel -> scenarioListViewModel.setUiState(ScenarioListUiState.Type.SELECTION)
             R.id.action_search -> scenarioListViewModel.setUiState(ScenarioListUiState.Type.SEARCH)
             R.id.action_select_all -> scenarioListViewModel.toggleAllScenarioSelectionForBackup()
+            R.id.action_privacy_settings -> activity?.let(scenarioListViewModel::showPrivacySettings)
+            R.id.action_purchase -> context?.let(scenarioListViewModel::showPurchaseActivity)
             else -> return false
         }
 
@@ -173,6 +170,8 @@ class ScenarioListFragment : Fragment() {
                     }
                 }
             }
+            findItem(R.id.action_privacy_settings)?.bind(menuState.privacyItemState)
+            findItem(R.id.action_purchase)?.bind(menuState.purchaseItemState)
         }
     }
 

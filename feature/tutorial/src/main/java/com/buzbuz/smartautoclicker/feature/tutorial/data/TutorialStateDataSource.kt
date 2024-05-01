@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +16,12 @@
  */
 package com.buzbuz.smartautoclicker.feature.tutorial.data
 
-import android.content.Context
 import android.util.Log
 
-import com.buzbuz.smartautoclicker.core.bitmaps.BitmapManager
+import com.buzbuz.smartautoclicker.core.bitmaps.IBitmapManager
 import com.buzbuz.smartautoclicker.core.database.TutorialDatabase
 import com.buzbuz.smartautoclicker.core.database.entity.TutorialSuccessEntity
-import com.buzbuz.smartautoclicker.core.domain.Repository
+import com.buzbuz.smartautoclicker.core.domain.IRepository
 import com.buzbuz.smartautoclicker.core.base.identifier.DATABASE_ID_INSERTION
 import com.buzbuz.smartautoclicker.core.base.identifier.Identifier
 import com.buzbuz.smartautoclicker.core.domain.model.TutorialSuccessState
@@ -32,13 +31,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /** Manages the tutorials user scenario and their success state. */
-internal class TutorialStateDataSource(context: Context) {
-
-    private val tutorialDatabase: TutorialDatabase = TutorialDatabase.getDatabase(context)
-    private val bitmapManager: BitmapManager = BitmapManager.getBitmapManager(context)
-    private val scenarioRepository: Repository = Repository.getRepository(context)
+@Singleton
+class TutorialStateDataSource @Inject constructor(
+    private val tutorialDatabase: TutorialDatabase,
+    private val bitmapManager: IBitmapManager,
+    private val scenarioRepository: IRepository,
+) {
 
     /** The list of successes for the tutorials. */
     val tutorialSuccessList: Flow<List<TutorialSuccessState>> =

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,12 +27,16 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
-import com.buzbuz.smartautoclicker.core.ui.overlays.manager.OverlayManager
 
+import com.buzbuz.smartautoclicker.core.ui.overlays.manager.OverlayManager
 import com.buzbuz.smartautoclicker.feature.tutorial.databinding.FragmentTutorialListBinding
 
-import kotlinx.coroutines.launch
+import dagger.hilt.android.AndroidEntryPoint
 
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@AndroidEntryPoint
 class TutorialListFragment : Fragment() {
 
     /** ViewModel providing the state of the UI. */
@@ -43,6 +47,8 @@ class TutorialListFragment : Fragment() {
     private lateinit var adapter: TutorialListAdapter
 
     private var isOpeningTutorial: Boolean = false
+
+    @Inject lateinit var overlayManager: OverlayManager
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         viewBinding = FragmentTutorialListBinding.inflate(inflater, container, false)
@@ -68,7 +74,7 @@ class TutorialListFragment : Fragment() {
 
     override fun onStart() {
         super.onStart()
-        OverlayManager.getInstance(requireContext()).hideAll()
+        overlayManager.hideAll()
     }
 
     private fun onGameClicked(gameIndex: Int) {

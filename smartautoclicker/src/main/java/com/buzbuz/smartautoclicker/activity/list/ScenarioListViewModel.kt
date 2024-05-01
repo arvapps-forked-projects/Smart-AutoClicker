@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,25 +16,27 @@
  */
 package com.buzbuz.smartautoclicker.activity.list
 
-import android.app.Application
+import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
-
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 
 import com.buzbuz.smartautoclicker.R
-import com.buzbuz.smartautoclicker.core.domain.Repository
+import com.buzbuz.smartautoclicker.core.domain.IRepository
 import com.buzbuz.smartautoclicker.core.domain.model.condition.ImageCondition
 import com.buzbuz.smartautoclicker.core.domain.model.scenario.Scenario
-import com.buzbuz.smartautoclicker.core.dumb.domain.DumbRepository
+import com.buzbuz.smartautoclicker.core.dumb.domain.IDumbRepository
 import com.buzbuz.smartautoclicker.core.dumb.domain.model.DumbAction
 import com.buzbuz.smartautoclicker.core.dumb.domain.model.DumbScenario
 import com.buzbuz.smartautoclicker.core.dumb.domain.model.Repeatable
 import com.buzbuz.smartautoclicker.core.ui.utils.formatDuration
-import com.buzbuz.smartautoclicker.feature.billing.IBillingRepository
-import com.buzbuz.smartautoclicker.feature.billing.ProModeAdvantage
-import com.buzbuz.smartautoclicker.feature.scenario.config.utils.getImageConditionBitmap
+import com.buzbuz.smartautoclicker.feature.revenue.IRevenueRepository
+import com.buzbuz.smartautoclicker.feature.revenue.UserBillingState
+import com.buzbuz.smartautoclicker.feature.smart.config.utils.getImageConditionBitmap
+
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -46,12 +48,15 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.minutes
+import javax.inject.Inject
 
-class ScenarioListViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val billingRepository = IBillingRepository.getRepository(application)
-    private val dumbRepository = DumbRepository.getRepository(application)
-    private val smartRepository = Repository.getRepository(application)
+@HiltViewModel
+class ScenarioListViewModel @Inject constructor(
+    @ApplicationContext context: Context,
+    private val smartRepository: IRepository,
+    private val dumbRepository: IDumbRepository,
+    private val revenueRepository: IRevenueRepository,
+) : ViewModel() {
 
     /** Current state type of the ui. */
     private val uiStateType = MutableStateFlow(ScenarioListUiState.Type.SELECTION)
@@ -62,7 +67,7 @@ class ScenarioListViewModel(application: Application) : AndroidViewModel(applica
     private val allScenarios: Flow<List<ScenarioListUiState.Item>> =
         combine(dumbRepository.dumbScenarios, smartRepository.scenarios) { dumbList, smartList ->
             mutableListOf<ScenarioListUiState.Item>().apply {
-                addAll(dumbList.map { it.toItem(application) })
+                addAll(dumbList.map { it.toItem(context) })
                 addAll(smartList.map { it.toItem() })
             }.sortedBy { it.displayName }
         }
@@ -82,15 +87,15 @@ class ScenarioListViewModel(application: Application) : AndroidViewModel(applica
         uiStateType,
         filteredScenarios,
         selectedForBackup,
-        billingRepository.isProModePurchased,
-    ) { stateType, scenarios, backupSelection, isProMode ->
+        revenueRepository.userBillingState,
+        revenueRepository.isPrivacySettingRequired,
+    ) { stateType, scenarios, backupSelection, billingState, privacyRequired ->
         ScenarioListUiState(
             type = stateType,
-            menuUiState = stateType.toMenuUiState(scenarios, backupSelection, isProMode),
+            menuUiState = stateType.toMenuUiState(scenarios, backupSelection, billingState, privacyRequired),
             listContent =
                 if (stateType != ScenarioListUiState.Type.EXPORT) scenarios
                 else scenarios.filterForBackupSelection(backupSelection),
-            isProModePurchased = isProMode,
         )
     }.stateIn(
         viewModelScope,
@@ -169,25 +174,29 @@ class ScenarioListViewModel(application: Application) : AndroidViewModel(applica
     fun getConditionBitmap(condition: ImageCondition, onBitmapLoaded: (Bitmap?) -> Unit): Job =
         getImageConditionBitmap(smartRepository, condition, onBitmapLoaded)
 
-    fun onExportClickedWithoutProMode(context: Context) {
-        billingRepository.startBillingActivity(context, ProModeAdvantage.Feature.BACKUP_EXPORT)
+    fun showPrivacySettings(activity: Activity) {
+        revenueRepository.startPrivacySettingUiFlow(activity)
     }
 
-    fun onImportClickedWithoutProMode(context: Context) {
-        billingRepository.startBillingActivity(context, ProModeAdvantage.Feature.BACKUP_IMPORT)
+    fun showPurchaseActivity(context: Context) {
+        revenueRepository.startPurchaseUiFlow(context)
     }
 
     private fun ScenarioListUiState.Type.toMenuUiState(
         scenarioItems: List<ScenarioListUiState.Item>,
         backupSelection: ScenarioBackupSelection,
-        isProModePurchased: Boolean,
+        billingState: UserBillingState,
+        isPrivacyRequired: Boolean,
     ): ScenarioListUiState.Menu = when (this) {
         ScenarioListUiState.Type.SEARCH -> ScenarioListUiState.Menu.Search
-        ScenarioListUiState.Type.EXPORT -> ScenarioListUiState.Menu.Export(!backupSelection.isEmpty())
+        ScenarioListUiState.Type.EXPORT -> ScenarioListUiState.Menu.Export(
+            canExport = !backupSelection.isEmpty(),
+        )
         ScenarioListUiState.Type.SELECTION -> ScenarioListUiState.Menu.Selection(
             searchEnabled = scenarioItems.isNotEmpty(),
             exportEnabled = scenarioItems.firstOrNull { it is ScenarioListUiState.Item.Valid } != null,
-            isProMode = isProModePurchased,
+            privacyRequired = isPrivacyRequired,
+            canPurchase = billingState != UserBillingState.PURCHASED,
         )
     }
 

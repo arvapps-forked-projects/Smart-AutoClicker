@@ -19,6 +19,7 @@ plugins {
     alias(libs.plugins.buzbuz.androidLibrary)
     alias(libs.plugins.buzbuz.kotlinSerialization)
     alias(libs.plugins.buzbuz.androidUnitTest)
+    alias(libs.plugins.buzbuz.hilt)
 }
 
 android {
@@ -39,13 +40,13 @@ dependencies {
 
     implementation(libs.google.material)
 
-    implementation(project(":core:base"))
-    implementation(project(":core:bitmaps"))
-    implementation(project(":core:database"))
-    implementation(project(":core:display"))
-    implementation(project(":core:domain"))
+    implementation(project(":core:common:base"))
+    implementation(project(":core:common:bitmaps"))
+    implementation(project(":core:common:display"))
+    implementation(project(":core:common:ui"))
+    implementation(project(":core:smart:database"))
+    implementation(project(":core:smart:domain"))
     implementation(project(":core:dumb"))
-    implementation(project(":core:ui"))
 
     testImplementation(libs.kotlinx.coroutines.test)
 }

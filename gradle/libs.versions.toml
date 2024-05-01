@@ -18,6 +18,7 @@ androidxAppCompat = "1.6.1"
 androidxCardView = "1.0.0"
 androidxConstraintLayout = "2.1.4"
 androidxCoreKtx = "1.12.0"
+androidxDatastore = "1.1.0"
 androidxFragmentKtx = "1.6.2"
 androidxLifecycle = "2.7.0"
 androidxLifecycleExtension = "2.2.0"
@@ -31,11 +32,14 @@ airbnbLottie = "6.1.0"
 googleMaterial = "1.10.0"
 kotlinSerializationJson = "1.6.3"
 openCv = "4.9.0"
+googleDaggerHilt = "2.51"
 
 # PlayStore only
 androidBillingClient = "6.2.0"
 googleFirebaseBom = "32.8.0"
 googleFirebaseCrashlytics = "18.6.3"
+googleUserMessaging = "2.2.0"
+googleGmsAds = "23.0.0"
 
 # Tests only
 androidxArchCoreTesting = "2.2.0"
@@ -44,6 +48,7 @@ androidxTestExtJunit = "1.1.5"
 junit = "4.13.2"
 mockitoCore = "5.6.0"
 mockitoKotlin = "5.1.0"
+mockk = "1.13.10"
 robolectric = "4.11.1"
 
 
@@ -65,6 +70,7 @@ androidx-test-core = { group = "androidx.test", name = "core", version.ref = "an
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockitoCore" }
 mockito-kotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockitoKotlin" }
+mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 
 # Androidx
@@ -73,6 +79,7 @@ androidx-appCompat = { group = "androidx.appcompat", name = "appcompat", version
 androidx-cardView = { group = "androidx.cardview", name = "cardview", version.ref = "androidxCardView" }
 androidx-constraintLayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "androidxConstraintLayout" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCoreKtx" }
+androidx-datastore = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "androidxDatastore" }
 androidx-fragment-ktx = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "androidxFragmentKtx" }
 androidx-recyclerView = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "androidxRecyclerView" }
 androidx-lifecycle-common-java8 = { group = "androidx.lifecycle", name = "lifecycle-common-java8", version.ref = "androidxLifecycle" }
@@ -91,6 +98,8 @@ airbnb-lottie = { group = "com.airbnb.android", name = "lottie", version.ref = "
 google-material = { group = "com.google.android.material", name = "material", version.ref = "googleMaterial" }
 kotlin-reflect = { group = "org.jetbrains.kotlin", name = "kotlin-reflect", version.ref = "kotlin" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+google-dagger-hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "googleDaggerHilt" }
+google-dagger-hilt-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "googleDaggerHilt" }
 
 # PlayStore only. Might seem unused but check in files if that is the case
 android-billingClient = { group = "com.android.billingclient", name = "billing", version.ref = "androidBillingClient" }
@@ -98,6 +107,9 @@ android-billingClient-ktx = { group = "com.android.billingclient", name = "billi
 google-firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "googleFirebaseBom" }
 google-firebase-crashlytics-ktx = { group = "com.google.firebase", name = "firebase-crashlytics-ktx", version.ref = "googleFirebaseCrashlytics" }
 google-firebase-crashlytics-ndk = { group = "com.google.firebase", name = "firebase-crashlytics-ndk", version.ref = "googleFirebaseCrashlytics" }
+google-dagger-hilt = { group = "com.google.dagger", name = "hilt-android", version.ref = "googleDaggerHilt" }
+google-userMessaging = { group = "com.google.android.ump", name = "user-messaging-platform", version.ref = "googleUserMessaging" }
+google-gms-ads = { group = "com.google.android.gms", name = "play-services-ads", version.ref = "googleGmsAds" }
 
 # Tests only
 androidx-arch-core-testing = { group = "androidx.arch.core", name = "core-testing", version.ref = "androidxArchCoreTesting" }
@@ -112,6 +124,7 @@ androidApplication = { id = "com.android.application", version.ref = "androidGra
 androidLibrary = { id = "com.android.library", version.ref = "androidGradlePlugin" }
 androidxNavigationSafeArgs = { id = "androidx.navigation.safeargs.kotlin", version.ref = "androidxNavigation" }
 androidxRoom = { id = "androidx.room", version.ref = "androidxRoom" }
+googleDaggerHiltAndroid = { id = "com.google.dagger.hilt.android", version.ref = "googleDaggerHilt" }
 googleKsp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 googleGms = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 googleCrashlytics = { id = "com.google.firebase.crashlytics", version.ref = "googleFirebaseCrashlyticsGradle" }
@@ -125,5 +138,6 @@ buzbuz-androidRoom = { id = "com.buzbuz.gradle.android.room", version = "unspeci
 buzbuz-androidUnitTest = { id = "com.buzbuz.gradle.android.unittest", version = "unspecified" }
 buzbuz-buildParameters = { id = "com.buzbuz.gradle.build.parameters", version = "unspecified" }
 buzbuz-crashlytics = { id = "com.buzbuz.gradle.crashlytics", version = "unspecified" }
+buzbuz-hilt = { id = "com.buzbuz.gradle.android.hilt", version = "unspecified" }
 buzbuz-kotlinSerialization = { id = "com.buzbuz.gradle.android.kotlin.serialization", version = "unspecified" }
 buzbuz-sourceDownload = { id = "com.buzbuz.gradle.build.sourcedl", version = "unspecified" }

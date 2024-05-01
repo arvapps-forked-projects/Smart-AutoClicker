@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,13 +37,23 @@ import com.buzbuz.smartautoclicker.SmartAutoClickerService.Companion.LOCAL_SERVI
 import com.buzbuz.smartautoclicker.SmartAutoClickerService.Companion.getLocalService
 import com.buzbuz.smartautoclicker.activity.ScenarioActivity
 import com.buzbuz.smartautoclicker.core.base.AndroidExecutor
+import com.buzbuz.smartautoclicker.core.base.Dumpable
 import com.buzbuz.smartautoclicker.core.base.extensions.requestFilterKeyEvents
 import com.buzbuz.smartautoclicker.core.base.extensions.startForegroundMediaProjectionServiceCompat
+import com.buzbuz.smartautoclicker.core.bitmaps.IBitmapManager
+import com.buzbuz.smartautoclicker.core.common.quality.QualityManager
+import com.buzbuz.smartautoclicker.core.display.DisplayMetrics
 import com.buzbuz.smartautoclicker.core.domain.model.scenario.Scenario
 import com.buzbuz.smartautoclicker.core.dumb.domain.model.DumbScenario
+import com.buzbuz.smartautoclicker.core.dumb.engine.DumbEngine
+import com.buzbuz.smartautoclicker.core.processing.domain.DetectionRepository
+import com.buzbuz.smartautoclicker.core.ui.overlays.manager.OverlayManager
+import com.buzbuz.smartautoclicker.feature.revenue.IRevenueRepository
 
+import dagger.hilt.android.AndroidEntryPoint
 import java.io.FileDescriptor
 import java.io.PrintWriter
+import javax.inject.Inject
 
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -62,6 +72,7 @@ import kotlin.coroutines.suspendCoroutine
  * displayed activity. This injection is made by the [dispatchGesture] method, which is called everytime an event has
  * been detected.
  */
+@AndroidEntryPoint
 class SmartAutoClickerService : AccessibilityService(), AndroidExecutor {
 
     companion object {
@@ -112,6 +123,14 @@ class SmartAutoClickerService : AccessibilityService(), AndroidExecutor {
     private val localService: LocalService?
         get() = LOCAL_SERVICE_INSTANCE as? LocalService
 
+    @Inject lateinit var overlayManager: OverlayManager
+    @Inject lateinit var displayMetrics: DisplayMetrics
+    @Inject lateinit var detectionRepository: DetectionRepository
+    @Inject lateinit var dumbEngine: DumbEngine
+    @Inject lateinit var bitmapManager: IBitmapManager
+    @Inject lateinit var qualityManager: QualityManager
+    @Inject lateinit var revenueRepository: IRevenueRepository
+
     private var currentScenarioName: String? = null
 
     /** Receives commands from the notification. */
@@ -130,10 +149,17 @@ class SmartAutoClickerService : AccessibilityService(), AndroidExecutor {
     override fun onServiceConnected() {
         super.onServiceConnected()
 
+        qualityManager.onServiceConnected()
         LOCAL_SERVICE_INSTANCE = LocalService(
             context = this,
+            overlayManager = overlayManager,
+            displayMetrics = displayMetrics,
+            detectionRepository = detectionRepository,
+            dumbEngine = dumbEngine,
+            bitmapManager = bitmapManager,
             androidExecutor = this,
             onStart = { isSmart, name ->
+                qualityManager.onServiceForegroundStart()
                 currentScenarioName = name
                 if (isSmart) {
                     createNotificationChannel()
@@ -142,6 +168,7 @@ class SmartAutoClickerService : AccessibilityService(), AndroidExecutor {
                 requestFilterKeyEvents(true)
             },
             onStop = {
+                qualityManager.onServiceForegroundEnd()
                 currentScenarioName = null
                 requestFilterKeyEvents(false)
                 stopForeground(Service.STOP_FOREGROUND_REMOVE)
@@ -166,6 +193,7 @@ class SmartAutoClickerService : AccessibilityService(), AndroidExecutor {
         LOCAL_SERVICE_INSTANCE?.release()
         LOCAL_SERVICE_INSTANCE = null
 
+        qualityManager.onServiceUnbind()
         return super.onUnbind(intent)
     }
 
@@ -208,7 +236,7 @@ class SmartAutoClickerService : AccessibilityService(), AndroidExecutor {
             builder.addAction(
                 R.drawable.ic_visible_on,
                 getString(R.string.notification_button_toggle_menu),
-                PendingIntent.getBroadcast(this, 0, Intent(INTENT_ACTION_TOGGLE_OVERLAY), PendingIntent.FLAG_IMMUTABLE,),
+                PendingIntent.getBroadcast(this, 0, Intent(INTENT_ACTION_TOGGLE_OVERLAY), PendingIntent.FLAG_IMMUTABLE),
             )
             builder.addAction(
                 R.drawable.ic_stop,
@@ -256,15 +284,25 @@ class SmartAutoClickerService : AccessibilityService(), AndroidExecutor {
 
     /**
      * Dump the state of the service via adb.
-     * adb shell "dumpsys activity service com.buzbuz.smartautoclicker.debug/com.buzbuz.smartautoclicker.SmartAutoClickerService"
+     * adb shell "dumpsys activity service com.buzbuz.smartautoclicker"
      */
     override fun dump(fd: FileDescriptor?, writer: PrintWriter?, args: Array<out String>?) {
-        super.dump(fd, writer, args)
-
         if (writer == null) return
 
-        (LOCAL_SERVICE_INSTANCE as? LocalService)
-            ?.dump(writer) ?: writer.println("None")
+        writer.append("* SmartAutoClickerService:").println()
+        writer.append(Dumpable.DUMP_DISPLAY_TAB)
+            .append("- isStarted=").append("${(LOCAL_SERVICE_INSTANCE as? LocalService)?.isStarted ?: false}; ")
+            .append("scenarioName=").append("$currentScenarioName; ")
+            .println()
+
+        displayMetrics.dump(writer)
+        bitmapManager.dump(writer)
+        overlayManager.dump(writer)
+        detectionRepository.dump(writer)
+        dumbEngine.dump(writer)
+        qualityManager.dump(writer)
+
+        revenueRepository.dump(writer)
     }
 
     override fun onInterrupt() { /* Unused */ }

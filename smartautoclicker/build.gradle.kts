@@ -18,7 +18,7 @@
 plugins {
     alias(libs.plugins.buzbuz.androidApplication)
     alias(libs.plugins.buzbuz.buildParameters)
-    alias(libs.plugins.googleKsp)
+    alias(libs.plugins.buzbuz.hilt)
 }
 
 android {
@@ -80,18 +80,19 @@ dependencies {
     implementation(libs.airbnb.lottie)
     implementation(libs.google.material)
 
-    implementation(project(":core:base"))
-    implementation(project(":core:detection"))
-    implementation(project(":core:display"))
-    implementation(project(":core:domain"))
+    implementation(project(":core:common:base"))
+    implementation(project(":core:common:bitmaps"))
+    implementation(project(":core:common:display"))
+    implementation(project(":core:common:quality"))
+    implementation(project(":core:common:ui"))
     implementation(project(":core:dumb"))
-    implementation(project(":core:processing"))
-    implementation(project(":core:ui"))
+    implementation(project(":core:smart:detection"))
+    implementation(project(":core:smart:domain"))
+    implementation(project(":core:smart:processing"))
     implementation(project(":feature:backup"))
-    implementation(project(":feature:billing"))
-    implementation(project(":feature:floating-menu"))
-    implementation(project(":feature:scenario-config"))
-    implementation(project(":feature:scenario-config-dumb"))
-    implementation(project(":feature:scenario-debugging"))
+    implementation(project(":feature:revenue"))
+    implementation(project(":feature:smart-config"))
+    implementation(project(":feature:smart-debugging"))
+    implementation(project(":feature:dumb-config"))
     implementation(project(":feature:tutorial"))
 }

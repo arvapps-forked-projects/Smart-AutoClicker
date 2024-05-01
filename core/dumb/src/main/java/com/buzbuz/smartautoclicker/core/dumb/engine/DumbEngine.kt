@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Kevin Buzeau
+ * Copyright (C) 2024 Kevin Buzeau
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,11 +16,12 @@
  */
 package com.buzbuz.smartautoclicker.core.dumb.engine
 
-import android.content.Context
 import android.util.Log
 
 import com.buzbuz.smartautoclicker.core.base.AndroidExecutor
-import com.buzbuz.smartautoclicker.core.dumb.domain.DumbRepository
+import com.buzbuz.smartautoclicker.core.base.Dumpable
+import com.buzbuz.smartautoclicker.core.base.addDumpTabulationLvl
+import com.buzbuz.smartautoclicker.core.dumb.domain.IDumbRepository
 import com.buzbuz.smartautoclicker.core.dumb.domain.model.DumbScenario
 
 import kotlinx.coroutines.CoroutineScope
@@ -37,32 +38,15 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.minutes
 
+import java.io.PrintWriter
+import javax.inject.Inject
+import javax.inject.Singleton
+
 @OptIn(ExperimentalCoroutinesApi::class)
-class DumbEngine(context: Context) {
-
-    companion object {
-
-        /** Singleton preventing multiple instances of the repository at the same time. */
-        @Volatile
-        private var INSTANCE: DumbEngine? = null
-
-        /**
-         * Get the repository singleton, or instantiates it if it wasn't yet.
-         *
-         * @param context the Android context.
-         *
-         * @return the repository singleton.
-         */
-        fun getInstance(context: Context): DumbEngine {
-            return INSTANCE ?: synchronized(this) {
-                val instance = DumbEngine(context)
-                INSTANCE = instance
-                instance
-            }
-        }
-    }
-
-    private val dumbRepository = DumbRepository.getRepository(context)
+@Singleton
+class DumbEngine @Inject constructor(
+    private val dumbRepository: IDumbRepository,
+): Dumpable {
 
     /** Execute the dumb actions. */
     private var dumbActionExecutor: DumbActionExecutor? = null
@@ -150,6 +134,19 @@ class DumbEngine(context: Context) {
 
             processingScope?.launch { stopDumbScenario() }
         }
+
+    override fun dump(writer: PrintWriter, prefix: CharSequence) {
+        val contentPrefix = prefix.addDumpTabulationLvl()
+
+        writer.apply {
+            append(prefix).println("* DumbEngine:")
+
+            append(contentPrefix)
+                .append("- scenarioId=${dumbScenarioDbId.value}; ")
+                .append("isRunning=${isRunning.value}; ")
+                .println()
+        }
+    }
 }
 
 private const val TAG = "DumbEngine"

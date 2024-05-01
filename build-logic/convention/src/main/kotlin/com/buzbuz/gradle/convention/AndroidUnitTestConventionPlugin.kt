@@ -17,10 +17,8 @@
 package com.buzbuz.gradle.convention
 
 import com.buzbuz.gradle.convention.utils.android
+import com.buzbuz.gradle.convention.utils.getLibs
 
-import com.buzbuz.gradle.convention.utils.getLibrary
-import com.buzbuz.gradle.convention.utils.getPluginId
-import com.buzbuz.gradle.convention.utils.libs
 import com.buzbuz.gradle.convention.utils.plugins
 import com.buzbuz.gradle.convention.utils.testImplementation
 
@@ -31,8 +29,10 @@ import org.gradle.kotlin.dsl.dependencies
 class AndroidUnitTestConventionPlugin : Plugin<Project> {
 
     override fun apply(target: Project): Unit = with(target) {
+        val libs = getLibs()
+
         plugins {
-            apply(libs.getPluginId("jetbrainsKotlinAndroid"))
+            apply(libs.plugins.jetbrainsKotlinAndroid)
         }
 
         android {
@@ -46,6 +46,7 @@ class AndroidUnitTestConventionPlugin : Plugin<Project> {
             testImplementation(libs.getLibrary("androidx.test.ext.junit"))
             testImplementation(libs.getLibrary("mockito.core"))
             testImplementation(libs.getLibrary("mockito.kotlin"))
+            testImplementation(libs.getLibrary("mockk.android"))
             testImplementation(libs.getLibrary("robolectric"))
         }
     }
